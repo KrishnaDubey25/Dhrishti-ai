@@ -1,0 +1,2 @@
+import {Navigate,useLocation} from 'react-router-dom';import {useAuth} from '../contexts/AuthContext';import type {Role} from '../types';
+export function Protected({role,children}:{role:Role;children:React.ReactNode}){const {user}=useAuth();const loc=useLocation();if(!user)return <Navigate to="/login" state={{from:loc.pathname}} replace/>;if(user.role!==role)return <Navigate to={`/${user.role==='phc'?'phc':user.role}/dashboard`} replace/>;return <>{children}</>}
