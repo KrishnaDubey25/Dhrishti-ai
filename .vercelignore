@@ -1,0 +1,6 @@
+ai_service
+ai_service/**
+**/__pycache__/**
+**/*.pyc
+.venv
+**/.venv/**
