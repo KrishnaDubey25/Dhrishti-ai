@@ -169,19 +169,22 @@ export function PatientEyeCapture({p}:{p:PatientProfile}){
           boxRef.current=null;setEyeOk(false);setStable(0);setMetrics({brightness:q.brightness,sharpness:q.sharpness,eyeSize:0});setGuide('Eye not detected — move closer and keep one eye clearly visible.');if(autoLock.current)cancelCountdown();
         }else{
           const b=eyeBoxFromLandmarks(lm); const eyeSize=b.w;
-          const centered=Math.abs(b.cx-.5)<.28&&Math.abs(b.cy-.5)<.25;
-          const distanceOk=eyeSize>.035&&eyeSize<.32;
-          const lightOk=q.brightness>30&&q.brightness<235;
-          const sharpOk=q.sharpness>2.2;
-          const ready=centered&&distanceOk&&lightOk&&sharpOk;
+          const centered=Math.abs(b.cx-.5)<.35&&Math.abs(b.cy-.5)<.30;
+          const distanceOk=eyeSize>.018&&eyeSize<.40;
+          const lightOk=q.brightness>20&&q.brightness<245;
+          const sharpOk=q.sharpness>1.0;
+
+          // Green lock is based mainly on reliable eye detection,
+          // centering and usable eye size. Lighting/sharpness remain guidance.
+          const ready=centered&&distanceOk;
           boxRef.current={x:b.x,y:b.y,w:b.w,h:b.h}; setMetrics({brightness:q.brightness,sharpness:q.sharpness,eyeSize}); setEyeOk(ready);
           setStable(n=>ready?Math.min(n+1,12):0);
           if(!centered)setGuide('Center one eye inside the oval.');
-          else if(eyeSize<=.065)setGuide('Move closer — eye is too small in the frame.');
-          else if(eyeSize>=.24)setGuide('Move slightly back — eye is too close.');
-          else if(!lightOk)setGuide(q.brightness<=55?'Increase lighting on the eye.':'Reduce strong light/glare.');
-          else if(!sharpOk)setGuide('Hold still — image is blurry.');
-          else setGuide('Good position — hold still.');
+          else if(eyeSize<=.018)setGuide('Move closer — eye is too small in the frame.');
+          else if(eyeSize>=.40)setGuide('Move slightly back — eye is too close.');
+          else if(!lightOk)setGuide('Eye detected — improve lighting if possible.');
+          else if(!sharpOk)setGuide('Eye detected — hold still for a sharper image.');
+          else setGuide('Good position — ready.');
           if(!ready&&autoLock.current)cancelCountdown();
         }
       }
