@@ -43,10 +43,10 @@ The wired trained model is a research/triage model trained on APTOS 2019. It is 
 - Python backend compile check passed after this change.
 - Full TypeScript build could not be executed in this sandbox because npm dependencies are not installed; global `tsc` reports missing React/router packages rather than an application-specific compile result.
 
-## Live PHC discovery upgrade
-- Added browser GPS based nearby healthcare discovery.
-- Added OpenStreetMap/Overpass live facility lookup with endpoint fallback.
-- Added distance sorting and map links.
-- Added PHC registration GPS capture and connected-centre matching.
-- External facilities are clearly distinguished from DRISHTI-connected/bookable PHCs; the app does not pretend an external centre participates in DRISHTI.
-- OpenStreetMap coverage/opening-hours completeness varies by area; no fake availability/open-now status is generated.
+## Camera flow revision
+- Removed deployed-camera dependence on localhost `/eye-check` for green readiness.
+- Added browser-side MediaPipe eye/face landmark tracking.
+- First-login quiz completion now redirects directly to the eye-capture route.
+- Auto-capture requires stable green readiness and uses beep + 3-2-1 countdown.
+- Manual capture remains available and saves a central/detected eye crop rather than the whole frame.
+- Dependency installation/build could not be completed in this environment because npm install timed out; run `npm install && npm run build` locally before deployment.

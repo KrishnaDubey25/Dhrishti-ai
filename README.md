@@ -114,5 +114,10 @@ DRISHTI-AI must be described as screening / decision support. It does not provid
 - Manual capture is always available and saves the central eye-guide crop.
 - Actual DR inference remains restricted to compatible retinal/fundus images.
 
-## Live Nearby PHC Discovery
-The Patient > Find PHC & Book screen can request browser geolocation and query live OpenStreetMap/Overpass healthcare data within ~15 km. Results show mapped facility name, type, distance, address, listed hours when available, and an OpenStreetMap link. A nearby real-world facility is not automatically treated as a DRISHTI partner: in-app booking is enabled only when it matches a PHC workspace registered in DRISHTI. PHC registration can capture verified browser GPS coordinates to support this matching. Patient GPS used for search is not written into the patient profile.
+## Patient camera flow (updated)
+- After first-login health quiz completion, the patient is redirected directly to `/patient/eye-capture`.
+- Eye readiness runs in-browser with MediaPipe Face Landmarker; it no longer depends on `http://localhost:8001/eye-check` for the green capture state.
+- The guide becomes green only when one eye is centered, at a usable distance, with acceptable lighting and frame sharpness, and held stable.
+- On stable green: beep -> 3 -> 2 -> 1 -> automatic eye-area crop capture.
+- Manual capture and retake remain available.
+- This external-eye capture is positioning/capture support only; DR grading still requires a true retinal/fundus image.
