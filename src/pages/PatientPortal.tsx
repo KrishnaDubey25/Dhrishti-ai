@@ -80,7 +80,15 @@ export function PatientEyeCapture({p}:{p:PatientProfile}){
       }
     }catch(e:any){
       setGuide('Camera/eye detector could not start. Check camera permission and internet access for the vision model.');
-      alert(e?.message||'Camera permission or eye detector was not available.');
+      if (e?.name === 'NotAllowedError' || e?.name === 'PermissionDeniedError') {
+        alert('Camera permission is blocked. Please allow camera access and reload.');
+      } else if (e?.name === 'NotFoundError') {
+        alert('No camera was detected on this device.');
+      } else if (e?.name === 'NotReadableError') {
+        alert('Camera is busy or already being used by another application.');
+      } else {
+        alert(`Eye detector could not start: ${e?.message || 'Unknown MediaPipe error'}`);
+      }
     }
   }
 
