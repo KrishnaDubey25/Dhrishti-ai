@@ -31,6 +31,9 @@ export function PatientEyeCapture({p}:{p:PatientProfile}){
   const detector=useRef<any>(null);
   const raf=useRef<number|null>(null);
   const countdownTimer=useRef<any>(null);
+  const greenHoldTimer=useRef<any>(null);
+  const audioCtx=useRef<AudioContext|null>(null);
+  const predictionRef=useRef<HTMLDivElement|null>(null);
   const autoLock=useRef(false);
   const boxRef=useRef<{x:number;y:number;w:number;h:number}|null>(null);
   const lastVideoTime=useRef(-1);
@@ -46,54 +49,90 @@ export function PatientEyeCapture({p}:{p:PatientProfile}){
   const[fundus,setFundus]=useState<UploadRecord|null>(null);
   const[ai,setAi]=useState<AIResult|null>(null);
   const[busy,setBusy]=useState(false);
+  const[predictionReady,setPredictionReady]=useState(false);
 
-  function beep(){
+  async function beep(freq=980,duration=.18){
     try{
       const AC=(window.AudioContext||(window as any).webkitAudioContext); if(!AC)return;
-      const ctx=new AC(); const osc=ctx.createOscillator(); const gain=ctx.createGain();
-      osc.type='sine'; osc.frequency.value=920; gain.gain.setValueAtTime(.14,ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.18); osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(); osc.stop(ctx.currentTime+.19); osc.onended=()=>ctx.close();
-    }catch{}
+      if(!audioCtx.current) audioCtx.current=new AC();
+      const ctx=audioCtx.current; if(ctx.state==='suspended') await ctx.resume();
+      const osc=ctx.createOscillator(); const gain=ctx.createGain();
+      osc.type='square'; osc.frequency.value=freq; gain.gain.setValueAtTime(.22,ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+duration); osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime+duration);
+    }catch(e){console.warn('Buzzer unavailable',e)}
   }
 
   async function ensureDetector(){
     if(detector.current)return detector.current;
     setGuide('Loading eye detector…');
     const vision=await import('@mediapipe/tasks-vision');
-    const files=await vision.FilesetResolver.forVisionTasks('/mediapipe/wasm');
-    detector.current=await vision.FaceLandmarker.createFromOptions(files,{
-      baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',delegate:'GPU'},
-      runningMode:'VIDEO', numFaces:1, minFaceDetectionConfidence:.55, minFacePresenceConfidence:.55, minTrackingConfidence:.5
-    });
+    const files=await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm');
+    const modelAssetPath='https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+    const common={runningMode:'VIDEO' as const,numFaces:1,minFaceDetectionConfidence:.45,minFacePresenceConfidence:.45,minTrackingConfidence:.45};
+    try{
+      detector.current=await vision.FaceLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath,delegate:'GPU'},...common});
+    }catch(gpuError){
+      console.warn('MediaPipe GPU delegate failed; retrying on CPU.',gpuError);
+      detector.current=await vision.FaceLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath},...common});
+    }
     setDetectorReady(true);
     return detector.current;
   }
 
   async function start(){
+    if(!navigator.mediaDevices?.getUserMedia){
+      setGuide('Camera is not supported in this browser. Use an updated Chrome, Edge, or Safari browser.');
+      alert('Camera API is not available in this browser.');
+      return;
+    }
+    let stream:MediaStream|undefined;
+    try{
+      setGuide('Requesting camera permission…');
+      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}},audio:false});
+      if(!video.current)return;
+      video.current.srcObject=stream;
+      await new Promise<void>((resolve,reject)=>{
+        const el=video.current!;
+        const done=()=>el.play().then(()=>resolve()).catch(reject);
+        if(el.readyState>=1)done(); else el.onloadedmetadata=done;
+      });
+      try{const AC=(window.AudioContext||(window as any).webkitAudioContext);if(AC&&!audioCtx.current){audioCtx.current=new AC();await audioCtx.current.resume();}}catch{}
+      setCaptured('');setPredictionReady(false);setStable(0);setEyeOk(false);setActive(true);setGuide('Camera ready — loading eye detector…');
+    }catch(e:any){
+      stream?.getTracks().forEach(t=>t.stop());
+      const name=e?.name||'';
+      if(name==='NotAllowedError'||name==='PermissionDeniedError'){
+        setGuide('Camera permission is blocked. Allow camera access for this site, then try again.');
+        alert('Camera permission is blocked. Open Site settings → Camera → Allow, then reload this page.');
+      }else if(name==='NotFoundError'||name==='DevicesNotFoundError'){
+        setGuide('No camera was detected on this device.');
+        alert('No camera was detected on this device.');
+      }else if(name==='NotReadableError'||name==='TrackStartError'){
+        setGuide('Camera is busy in another app or browser tab.');
+        alert('Camera is currently unavailable. Close other apps/tabs using the camera and try again.');
+      }else{
+        setGuide(`Camera could not start: ${e?.message||'Unknown camera error'}`);
+        alert(`Camera could not start: ${e?.message||'Unknown error'}`);
+      }
+      return;
+    }
     try{
       await ensureDetector();
-      const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}},audio:false});
-      if(video.current){
-        video.current.srcObject=s; await video.current.play(); setCaptured(''); setStable(0); setEyeOk(false); setActive(true); setGuide('Move closer and place one eye inside the oval.');
-        lastVideoTime.current=-1; scanLoop();
-      }
+      setGuide('Move closer and place one eye inside the oval.');
+      lastVideoTime.current=-1;
+      scanLoop();
     }catch(e:any){
-      setGuide('Camera/eye detector could not start. Check camera permission and internet access for the vision model.');
-      if (e?.name === 'NotAllowedError' || e?.name === 'PermissionDeniedError') {
-        alert('Camera permission is blocked. Please allow camera access and reload.');
-      } else if (e?.name === 'NotFoundError') {
-        alert('No camera was detected on this device.');
-      } else if (e?.name === 'NotReadableError') {
-        alert('Camera is busy or already being used by another application.');
-      } else {
-        alert(`Eye detector could not start: ${e?.message || 'Unknown MediaPipe error'}`);
-      }
+      console.error('Eye detector initialization failed:',e);
+      setDetectorReady(false);setEyeOk(false);
+      setGuide(`Eye detector could not start: ${e?.message||'Model/WASM load failed'}. Check internet access and reload.`);
+      alert(`Eye detector could not start: ${e?.message||'Model/WASM load failed'}`);
     }
   }
 
   function cancelCountdown(){
     if(countdownTimer.current){clearInterval(countdownTimer.current);countdownTimer.current=null}
+    if(greenHoldTimer.current){clearTimeout(greenHoldTimer.current);greenHoldTimer.current=null}
     setCount(null); autoLock.current=false;
   }
 
@@ -151,9 +190,32 @@ export function PatientEyeCapture({p}:{p:PatientProfile}){
   }
 
   useEffect(()=>{
-    if(!active||captured||!eyeOk||stable<3||autoLock.current)return;
-    autoLock.current=true; beep(); setCount(3); let n=3;
-    countdownTimer.current=setInterval(()=>{n-=1;if(n<=0){clearInterval(countdownTimer.current);countdownTimer.current=null;setCount(null);snap(true);autoLock.current=false}else setCount(n)},1000);
+    if(!active||captured||!eyeOk||stable<3||autoLock.current){
+      if(greenHoldTimer.current&&!eyeOk){clearTimeout(greenHoldTimer.current);greenHoldTimer.current=null}
+      return;
+    }
+    if(greenHoldTimer.current)return;
+    setGuide('Good position — hold still for auto capture…');
+    greenHoldTimer.current=setTimeout(async()=>{
+      greenHoldTimer.current=null;
+      if(!eyeOk||autoLock.current)return;
+      autoLock.current=true;
+      await beep(1100,.28);
+      setCount(3);
+      let n=3;
+      countdownTimer.current=setInterval(async()=>{
+        n-=1;
+        if(n<=0){
+          clearInterval(countdownTimer.current);countdownTimer.current=null;setCount(null);
+          await beep(1350,.22);
+          snap(true);
+        }else{
+          setCount(n);
+          await beep(880,.12);
+        }
+      },1000);
+    },900);
+    return()=>{if(greenHoldTimer.current){clearTimeout(greenHoldTimer.current);greenHoldTimer.current=null}};
   },[active,captured,eyeOk,stable]);
 
   function snap(auto=false){
@@ -166,13 +228,15 @@ export function PatientEyeCapture({p}:{p:PatientProfile}){
     }else{
       const cropW=vw*.58,cropH=vh*.46,sx=(vw-cropW)/2,sy=(vh-cropH)/2;c.width=720;c.height=Math.round(720*(cropH/cropW));c.getContext('2d')!.drawImage(v,sx,sy,cropW,cropH,0,0,c.width,c.height);
     }
-    setCaptured(c.toDataURL('image/jpeg',.94)); cancelCountdown(); setGuide('Eye image captured. Retake if needed.');
+    setCaptured(c.toDataURL('image/jpeg',.94)); cancelCountdown(); setGuide('Eye image captured. Opening screening guidance…'); setPredictionReady(true);
+    const stream=video.current?.srcObject as MediaStream|undefined; stream?.getTracks().forEach(t=>t.stop()); if(video.current)video.current.srcObject=null; setActive(false); setEyeOk(false);
+    setTimeout(()=>predictionRef.current?.scrollIntoView({behavior:'smooth',block:'start'}),450);
   }
 
   async function pick(f?:File){if(!f)return;setFundus(await toUpload(f,'fundus'));setAi(null)}
   async function analyze(){if(!fundus)return;setBusy(true);try{const result=await runTrainedDRModel({id:uid('patient-preview'),patientId:p.id,phcId:'patient-preview',createdAt:new Date().toISOString(),status:'draft',right:{eye:'right',image:fundus,quality:'good',observations:{}},left:{eye:'left',image:fundus,quality:'good',observations:{}}});setAi(result)}catch(e:any){alert(e.message||'Trained model service unavailable.')}finally{setBusy(false)}}
 
-  return <><PageTitle title="Eye capture" sub="Step 2 after your health quiz: position one eye, wait for green, then automatic 3-2-1 capture."/><div className="grid grid-2"><div className="card capture-card"><span className="eyebrow">Guided eye capture</span><h3>Eye inside guide → green → beep → 3 · 2 · 1 → auto capture</h3><p className="small muted">This runs eye landmark detection in the browser, so the green lock does not depend on localhost or the Python AI server.</p><div className={`live-capture ${eyeOk?'ready':'not-ready'}`}><video ref={video} muted playsInline/><div className="eye-guide"/><div className="capture-status">{!active?'Camera off':count!==null?`Eye locked • capturing in ${count}`:guide}</div>{count!==null&&<div className="countdown">{count}</div>}<div className="capture-dot" aria-hidden="true"/></div><canvas ref={canvas} style={{display:'none'}}/><div className="capture-actions">{!active?<button className="btn primary" onClick={start}><Camera size={16}/>Start camera</button>:<button className="btn ghost" onClick={stop}>Stop</button>}<button className="btn soft" disabled={!active} onClick={()=>snap(false)}>Manual capture</button>{captured&&<button className="btn ghost" onClick={()=>{setCaptured('');setStable(0);autoLock.current=false;setGuide('Place one eye inside the oval.') }}>Retake</button>}</div>{active&&<div className="capture-metrics"><span>{detectorReady?'Eye detector ready':'Loading detector'}</span><span>Light {Math.round(metrics.brightness)}</span><span>Stability {Math.min(100,Math.round(stable/3*100))}%</span></div>}{captured&&<><span className="small" style={{display:'block',marginTop:12}}>Captured eye-only image</span><img className="captured-preview eye-only-preview" src={captured} alt="Captured eye"/></>}<div className="disclaimer"><ShieldAlert size={15}/> This camera step verifies positioning/capture only. Diabetic-retinopathy grading requires a retinal/fundus image.</div></div><div className="card"><span className="eyebrow">Optional retinal image</span><h3>Fundus image analysis</h3><p className="muted">If you already have a real retinal/fundus image, upload it here. Otherwise continue to PHC booking after capturing the eye image.</p><div className="upload"><input type="file" accept="image/*" onChange={e=>pick(e.target.files?.[0])}/>{fundus&&<><Status>{fundus.name}</Status>{fundus.dataUrl&&<img className="fundus-preview" src={fundus.dataUrl} alt="Fundus preview"/>}</>}</div><button className="btn primary" disabled={!fundus||busy} onClick={analyze}>{busy?'Running trained model…':'Run retinal screening model'}</button>{captured&&<Link className="btn soft" style={{marginTop:10}} to="/patient/book-screening"><MapPin size={16}/>Continue to PHC discovery</Link>}{ai&&<div className="patient-ai"><span className="eyebrow">AI Screening Recommendation</span><h2>Level {ai.severity} · {ai.referable?'Referable':'Non-referable'}</h2><p>Confidence {Math.round(ai.confidence*100)}%</p><p>{ai.explanation}</p><div className="disclaimer">This is trained-model screening support, not a final diagnosis. A PHC/specialist review is recommended.</div></div>}</div></div></>
+  return <><PageTitle title="Eye capture" sub="Step 2 after your health quiz: position one eye, wait for green, then automatic 3-2-1 capture."/><div className="grid grid-2"><div className="card capture-card"><span className="eyebrow">Guided eye capture</span><h3>Eye inside guide → green → beep → 3 · 2 · 1 → auto capture</h3><p className="small muted">This runs eye landmark detection in the browser, so the green lock does not depend on localhost or the Python AI server.</p><div className={`live-capture ${eyeOk?'ready':'not-ready'}`}><video ref={video} muted playsInline/><div className="eye-guide"/><div className="capture-status">{!active?'Camera off':count!==null?`Eye locked • capturing in ${count}`:guide}</div>{count!==null&&<div className="countdown">{count}</div>}<div className="capture-dot" aria-hidden="true"/></div><canvas ref={canvas} style={{display:'none'}}/><div className="capture-actions">{!active?<button className="btn primary" onClick={start}><Camera size={16}/>Start camera</button>:<button className="btn ghost" onClick={stop}>Stop</button>}<button className="btn soft" disabled={!active} onClick={()=>snap(false)}>Manual capture</button>{captured&&<button className="btn ghost" onClick={()=>{setCaptured('');setPredictionReady(false);setStable(0);autoLock.current=false;setGuide('Place one eye inside the oval.') }}>Retake</button>}</div>{active&&<div className="capture-metrics"><span>{detectorReady?'Eye detector ready':'Loading detector'}</span><span>Light {Math.round(metrics.brightness)}</span><span>Stability {Math.min(100,Math.round(stable/3*100))}%</span></div>}{captured&&<><span className="small" style={{display:'block',marginTop:12}}>Captured eye-only image</span><img className="captured-preview eye-only-preview" src={captured} alt="Captured eye"/></>}<div className="disclaimer"><ShieldAlert size={15}/> This camera step verifies positioning/capture only. Diabetic-retinopathy grading requires a retinal/fundus image.</div></div><div className="card" ref={predictionRef}><span className="eyebrow">Prediction & next step</span>{predictionReady&&<div className={`risk-hero ${p.onboarding?.risk?.band||'low'}`}><span>Preliminary screening guidance</span><h2>{p.onboarding?.risk?.band?.toUpperCase()||'SCREENING RECOMMENDED'}</h2><p>{p.onboarding?.risk?.nextStep||'Proceed to a PHC for retinal/fundus screening.'}</p><div className="disclaimer">This preliminary guidance uses your questionnaire and successful eye-position capture. A normal external-eye photo cannot diagnose diabetic retinopathy.</div></div>}<span className="eyebrow" style={{marginTop:predictionReady?18:0}}>Optional retinal image</span><h3>Fundus image analysis</h3><p className="muted">If you already have a real retinal/fundus image, upload it here. Otherwise continue to PHC booking after capturing the eye image.</p><div className="upload"><input type="file" accept="image/*" onChange={e=>pick(e.target.files?.[0])}/>{fundus&&<><Status>{fundus.name}</Status>{fundus.dataUrl&&<img className="fundus-preview" src={fundus.dataUrl} alt="Fundus preview"/>}</>}</div><button className="btn primary" disabled={!fundus||busy} onClick={analyze}>{busy?'Running trained model…':'Run retinal screening model'}</button>{captured&&<Link className="btn soft" style={{marginTop:10}} to="/patient/book-screening"><MapPin size={16}/>Continue to PHC discovery</Link>}{ai&&<div className="patient-ai"><span className="eyebrow">AI Screening Recommendation</span><h2>Level {ai.severity} · {ai.referable?'Referable':'Non-referable'}</h2><p>Confidence {Math.round(ai.confidence*100)}%</p><p>{ai.explanation}</p><div className="disclaimer">This is trained-model screening support, not a final diagnosis. A PHC/specialist review is recommended.</div></div>}</div></div></>
 }
 
 function downloadFinal(p:PatientProfile,s:any){const doc=new jsPDF();doc.setFontSize(19);doc.text('DRISHTI-AI — Retinal Screening Report',16,18);doc.setFontSize(10);let y=31;const rows=[['Patient',p.name],['Screening date',new Date(s.createdAt).toLocaleString()],['Right-eye quality',s.right.quality],['Left-eye quality',s.left.quality],['AI screening recommendation',s.aiResult?`Level ${s.aiResult.severity} — ${s.aiResult.referable?'Referable':'Non-referable'}`:''],['AI confidence',s.aiResult?`${Math.round(s.aiResult.confidence*100)}%`:``],['Ophthalmologist final assessment',`Level ${s.doctorReview.finalSeverity} — ${s.doctorReview.referable?'Referable':'Non-referable'}`],['Doctor notes',s.doctorReview.notes||''],['Follow-up',s.doctorReview.followUpDate||'']];for(const[a,b]of rows){if(!b)continue;doc.setFont('helvetica','bold');doc.text(a+':',16,y);doc.setFont('helvetica','normal');const lines=doc.splitTextToSize(String(b),128);doc.text(lines,72,y);y+=Math.max(8,lines.length*5)}doc.setFontSize(8);doc.text('AI screening support is not a guaranteed diagnosis. Final clinical assessment is clinician-entered.',16,285);doc.save(`DRISHTI-AI-${p.name.replace(/\s+/g,'-')}.pdf`)}
