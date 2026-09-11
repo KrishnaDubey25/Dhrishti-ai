@@ -61,7 +61,7 @@ export function PatientEyeCapture({p}:{p:PatientProfile}){
     if(detector.current)return detector.current;
     setGuide('Loading eye detector…');
     const vision=await import('@mediapipe/tasks-vision');
-    const files=await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm');
+    const files=await vision.FilesetResolver.forVisionTasks('/mediapipe/wasm');
     detector.current=await vision.FaceLandmarker.createFromOptions(files,{
       baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',delegate:'GPU'},
       runningMode:'VIDEO', numFaces:1, minFaceDetectionConfidence:.55, minFacePresenceConfidence:.55, minTrackingConfidence:.5
