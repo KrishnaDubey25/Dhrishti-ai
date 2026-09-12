@@ -92,7 +92,7 @@ function extractMeasurementRows(text:string,base:number):ExtractedMeasurement[]{
 function findMeasurement(rows:ExtractedMeasurement[],names:string[]){return rows.find(r=>names.some(n=>r.name.toLowerCase().includes(n.toLowerCase())))}
 function fbgDisplay(row?:ExtractedMeasurement){
   if(!row)return '';
-  const v=num(row.value);const unit=row.unit.toLowerCase();
+  const v=num(row.value);const unit=(row.unit ?? '').toLowerCase();
   if(Number.isFinite(v)&&unit.includes('mmol'))return `${v.toFixed(2)} mmol/L (≈${Math.round(v*18.0182)} mg/dL)`;
   return `${row.value}${row.unit?` ${row.unit}`:''}`;
 }
