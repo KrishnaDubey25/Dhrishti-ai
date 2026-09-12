@@ -1,14 +1,10 @@
-# DRISHTI-AI Verification Notes
+# DRISHTI-AI verification
 
-- PHC Today’s Bookings page now filters to the current day.
-- Appointment detail shows patient identity, contact/profile information, diabetes history, eye history, symptoms, preliminary patient-side risk, and attached patient reports.
-- Detailed fundus workspace requires Right + Left fundus images.
-- Fundus images pass through the existing quality service / trained CNN quality gate; unusable images hard-block DR inference.
-- Diabetes/medical report upload is required for the detailed PHC report workflow.
-- PHC staff must verify the structured clinical values used in the contextual report.
-- AI grade remains fundus-model-derived; systemic values add risk/follow-up context and do not overwrite retinal severity.
-- Detailed report stores per-eye grade, confidence, image quality, systemic context, recommendation, priority, limitations, and is downloadable as PDF.
-- Report is submitted to the existing ophthalmologist review workflow.
-- `ai_service/app.py` Python compile check passed.
-- Modified TS/TSX parse check found no non-import diagnostics after fixes.
-- Full npm dependency install could not be completed in the build sandbox because registry installation timed out; run `npm install && npm run build` locally before deploy.
+- PHC dual-source flow present: diabetes report extraction + bilateral fundus analysis + detailed report.
+- PDF text extraction is preferred; OCR is fallback for scanned PDF/image reports.
+- Auto-captured diabetes fields are stored with extraction confidence and remain editable.
+- Fundus image quality remains a hard gate; ungradable images block DR inference.
+- Diabetes values do not change/fabricate retinal model severity.
+- Detailed clinical rows that were not actually measured remain `Not performed / not entered`.
+- Modified TypeScript/TSX files were syntax-transpiled with the TypeScript compiler: 0 syntax diagnostics.
+- Full dependency-resolved Vite build could not complete in the generation environment because npm installation timed out; run `npm install && npm run build` locally before deployment.

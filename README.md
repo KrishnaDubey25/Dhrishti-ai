@@ -139,3 +139,11 @@ PHC flow is now: Today's Bookings -> complete patient context -> diabetes report
 The detailed PHC report includes per-eye model grade/confidence, bilateral image-quality scores, overall referable status, model metadata, retinal summary, verified diabetes/systemic context, coordination priority, follow-up guidance, and a downloadable PDF. The attached diabetes report is retained as source evidence. In this prototype, PHC staff verify/enter structured values from the report; the app does not fabricate OCR results from unreadable documents.
 
 No part of the app claims 100% diagnostic accuracy. Model confidence is displayed separately from accuracy, ungradable retinal images are blocked, and the final clinical assessment belongs to an ophthalmologist/qualified eye-care professional.
+
+## PHC automatic dual-source analysis (2026-09-12)
+The PHC case workspace now analyzes both uploaded sources before producing the detailed report:
+1. Diabetes/medical report: native PDF text extraction first; scanned PDFs/images use English OCR fallback. Supported values such as HbA1c, fasting/post-meal/random glucose, blood pressure, cholesterol, creatinine, diabetes duration, treatment and medicines are auto-captured with extraction confidence and remain editable for PHC review.
+2. Bilateral fundus images: trained CNN gradability/quality gate runs per eye, followed by the configured trained 5-class DR model. Ungradable images block retinal inference.
+3. Fusion/report: systemic values are contextual evidence only and never overwrite the retinal DR grade. The report shows extraction method/confidence, per-eye image quality, per-eye DR grade/confidence, referability, clinical findings table, recommendation, follow-up and limitations.
+
+Automatic OCR/PDF extraction can make mistakes; values not found are not invented. PHC review is recommended and ophthalmologist review remains the final clinical layer.
