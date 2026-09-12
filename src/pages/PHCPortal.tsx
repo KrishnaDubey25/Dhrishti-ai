@@ -90,32 +90,107 @@ function defaultClinicalContext(p:any):PHCClinicalContext{
 function emptyObs():ClinicalObservation{return {visualAcuity:'',intraocularPressure:'',anteriorSegment:'',ophthalmoscopy:'',retinalStructure:'',opticDisc:'',macula:'',vessels:'',microaneurysm:'',hemorrhage:'',exudate:'',cottonWoolSpots:'',neovascularization:'',laserScars:'',retinalEdema:'',oct:'',fluoresceinAngiography:'',visualField:'',other:'',notes:''}}
 function mkEye(eye:'right'|'left'):EyeScreening{return {eye,quality:'good',observations:emptyObs()}}
 
-function obsValue(v?:string){return v?.trim()||'Not performed / not entered'}
+function cleanFinding(v?:string){return v?.trim()||''}
+function missingFinding(v?:string){
+  const x=(v||'').trim().toLowerCase();
+  return !x||x==='not performed'||x==='not entered'||x==='not performed / not entered'||x==='not available';
+}
+
 function buildClinicalFindingRows(s:Screening):ClinicalFindingRow[]{
-  const r=s.right.observations,l=s.left.observations,ai=s.aiResult;
-  const aiR=ai?.perEye?.right?.label||'AI result unavailable',aiL=ai?.perEye?.left?.label||'AI result unavailable';
+  const r=s.right.observations;
+  const l=s.left.observations;
+  const ai=s.aiResult;
+
+  const aiR=ai?.perEye?.right;
+  const aiL=ai?.perEye?.left;
+
+  const rightLabel=aiR?.label||'AI result unavailable';
+  const leftLabel=aiL?.label||'AI result unavailable';
+
+  const rightConfidence=
+    typeof aiR?.confidence==='number'
+      ? ` · confidence ${Math.round(aiR.confidence*100)}%`
+      : '';
+
+  const leftConfidence=
+    typeof aiL?.confidence==='number'
+      ? ` · confidence ${Math.round(aiL.confidence*100)}%`
+      : '';
+
   const rows:ClinicalFindingRow[]=[
-    {examination:'Best-corrected / available visual acuity (BCVA)',right:obsValue(r.visualAcuity),left:obsValue(l.visualAcuity),source:(r.visualAcuity||l.visualAcuity)?'PHC entered':'Not performed'},
-    {examination:'Intraocular pressure (IOP)',right:obsValue(r.intraocularPressure),left:obsValue(l.intraocularPressure),source:(r.intraocularPressure||l.intraocularPressure)?'PHC entered':'Not performed'},
-    {examination:'Anterior segment examination',right:obsValue(r.anteriorSegment),left:obsValue(l.anteriorSegment),source:(r.anteriorSegment||l.anteriorSegment)?'PHC entered':'Not performed'},
-    {examination:'Color fundus photograph / AI DR grade',right:`${aiR}; fundus quality ${s.right.quality} ${s.right.qualityScore??'—'}/100`,left:`${aiL}; fundus quality ${s.left.quality} ${s.left.qualityScore??'—'}/100`,source:'AI + PHC'},
-    {examination:'Ophthalmoscopy / retinal appearance',right:obsValue(r.ophthalmoscopy||r.retinalStructure),left:obsValue(l.ophthalmoscopy||l.retinalStructure),source:(r.ophthalmoscopy||r.retinalStructure||l.ophthalmoscopy||l.retinalStructure)?'PHC entered':'Not performed'},
-    {examination:'Optic disc',right:obsValue(r.opticDisc),left:obsValue(l.opticDisc),source:(r.opticDisc||l.opticDisc)?'PHC entered':'Not performed'},
-    {examination:'Macula / foveal region',right:obsValue(r.macula),left:obsValue(l.macula),source:(r.macula||l.macula)?'PHC entered':'Not performed'},
-    {examination:'Retinal vessels',right:obsValue(r.vessels),left:obsValue(l.vessels),source:(r.vessels||l.vessels)?'PHC entered':'Not performed'},
-    {examination:'Microaneurysms',right:obsValue(r.microaneurysm),left:obsValue(l.microaneurysm),source:(r.microaneurysm||l.microaneurysm)?'PHC entered':'Not performed'},
-    {examination:'Retinal hemorrhages',right:obsValue(r.hemorrhage),left:obsValue(l.hemorrhage),source:(r.hemorrhage||l.hemorrhage)?'PHC entered':'Not performed'},
-    {examination:'Hard exudates',right:obsValue(r.exudate),left:obsValue(l.exudate),source:(r.exudate||l.exudate)?'PHC entered':'Not performed'},
-    {examination:'Cotton-wool spots',right:obsValue(r.cottonWoolSpots),left:obsValue(l.cottonWoolSpots),source:(r.cottonWoolSpots||l.cottonWoolSpots)?'PHC entered':'Not performed'},
-    {examination:'Neovascularization',right:obsValue(r.neovascularization),left:obsValue(l.neovascularization),source:(r.neovascularization||l.neovascularization)?'PHC entered':'Not performed'},
-    {examination:'Laser scars / prior retinal treatment',right:obsValue(r.laserScars),left:obsValue(l.laserScars),source:(r.laserScars||l.laserScars)?'PHC entered':'Not performed'},
-    {examination:'Retinal edema / thickening',right:obsValue(r.retinalEdema),left:obsValue(l.retinalEdema),source:(r.retinalEdema||l.retinalEdema)?'PHC entered':'Not performed'},
-    {examination:'SD-OCT',right:obsValue(r.oct),left:obsValue(l.oct),source:(r.oct||l.oct)?'PHC entered':'Not performed'},
-    {examination:'Fluorescein angiography / UWFA',right:obsValue(r.fluoresceinAngiography),left:obsValue(l.fluoresceinAngiography),source:(r.fluoresceinAngiography||l.fluoresceinAngiography)?'PHC entered':'Not performed'},
-    {examination:'Visual field',right:obsValue(r.visualField),left:obsValue(l.visualField),source:(r.visualField||l.visualField)?'PHC entered':'Not performed'},
-    {examination:'Other clinical finding',right:obsValue(r.other),left:obsValue(l.other),source:(r.other||l.other)?'PHC entered':'Not performed'},
+    {
+      examination:'Color fundus photograph / AI DR grade',
+      right:`${rightLabel}${rightConfidence} · image quality ${s.right.quality}${typeof s.right.qualityScore==='number'?` ${s.right.qualityScore}/100`:''}`,
+      left:`${leftLabel}${leftConfidence} · image quality ${s.left.quality}${typeof s.left.qualityScore==='number'?` ${s.left.qualityScore}/100`:''}`,
+      source:'AI model'
+    }
   ];
+
+  const add=(examination:string,right?:string,left?:string)=>{
+    const rv=cleanFinding(right);
+    const lv=cleanFinding(left);
+
+    if(!rv&&!lv)return;
+
+    rows.push({
+      examination,
+      right:rv||'—',
+      left:lv||'—',
+      source:'PHC entered'
+    });
+  };
+
+  add('Best-corrected / available visual acuity (BCVA)',r.visualAcuity,l.visualAcuity);
+  add('Intraocular pressure (IOP)',r.intraocularPressure,l.intraocularPressure);
+  add('Anterior segment examination',r.anteriorSegment,l.anteriorSegment);
+  add('Ophthalmoscopy / retinal appearance',r.ophthalmoscopy,l.ophthalmoscopy);
+  add('Retinal structure',r.retinalStructure,l.retinalStructure);
+  add('Optic disc',r.opticDisc,l.opticDisc);
+  add('Macula / foveal region',r.macula,l.macula);
+  add('Retinal vessels',r.vessels,l.vessels);
+  add('Microaneurysms',r.microaneurysm,l.microaneurysm);
+  add('Retinal hemorrhages',r.hemorrhage,l.hemorrhage);
+  add('Hard exudates',r.exudate,l.exudate);
+  add('Cotton-wool spots',r.cottonWoolSpots,l.cottonWoolSpots);
+  add('Neovascularization',r.neovascularization,l.neovascularization);
+  add('Laser scars / prior retinal treatment',r.laserScars,l.laserScars);
+  add('Retinal edema / thickening',r.retinalEdema,l.retinalEdema);
+  add('SD-OCT',r.oct,l.oct);
+  add('Fluorescein angiography / UWFA',r.fluoresceinAngiography,l.fluoresceinAngiography);
+  add('Visual field',r.visualField,l.visualField);
+  add('Other clinical finding',r.other,l.other);
+  add('Clinical notes',r.notes,l.notes);
+
   return rows;
+}
+
+/*
+ * Also cleans reports generated before this update.
+ * Old "Not performed / not entered" rows are hidden instead of
+ * remaining permanently stored in the visible report.
+ */
+function visibleClinicalFindingRows(s:Screening):ClinicalFindingRow[]{
+  const source=s.phcReport?.clinicalFindings?.length
+    ? s.phcReport.clinicalFindings
+    : buildClinicalFindingRows(s);
+
+  return source
+    .filter(row=>{
+      if(row.source==='Not performed')return false;
+
+      const rightMissing=missingFinding(row.right);
+      const leftMissing=missingFinding(row.left);
+
+      // AI/model rows remain visible.
+      if(row.source==='AI model'||row.source==='AI + PHC')return true;
+
+      return !(rightMissing&&leftMissing);
+    })
+    .map(row=>({
+      ...row,
+      right:missingFinding(row.right)?'—':row.right,
+      left:missingFinding(row.left)?'—':row.left
+    }));
 }
 
 function buildDetailedReport(s:Screening,p:any):PHCDetailedReport{
@@ -138,7 +213,7 @@ function buildDetailedReport(s:Screening,p:any):PHCDetailedReport{
   if(sev===2){recommendation='Referable screening result (moderate NPDR signal). Coordinate ophthalmology/retina review.';followUp='Prompt specialist review is recommended; exact timing should be determined by the reviewing clinician.';priority='priority'}
   if(sev===3){recommendation='High-priority referable screening result (severe NPDR signal). Escalate for retina/ophthalmology review.';followUp='Priority specialist assessment is recommended; the ophthalmologist determines urgency and follow-up.';priority='urgent'}
   if(sev===4){recommendation='High-priority referable screening result (proliferative DR signal). Escalate promptly for retina/ophthalmology review.';followUp='Urgent specialist assessment is recommended; the ophthalmologist determines definitive diagnosis and treatment.';priority='urgent'}
-  return {id:uid('phcrpt'),generatedAt:new Date().toISOString(),overallSeverity:sev,overallLabel:severityNames[sev],referable:ai.referable,confidence:ai.confidence,rightLabel:right?.label||'Not available',leftLabel:left?.label||'Not available',qualitySummary:`Right: ${s.right.quality} (${s.right.qualityScore??'—'}/100) · Left: ${s.left.quality} (${s.left.qualityScore??'—'}/100)`,systemicContext:systemic,retinalSummary:retinal,clinicalFindings:buildClinicalFindingRows(s),recommendation,followUp,priority,limitation:`This report combines a trained research fundus classifier with ${c.reportAnalysis?'automatically extracted diabetes-report data':'structured diabetes context'}${c.verifiedByPHC?' reviewed by PHC staff':' that has not been marked PHC-verified'} and staff-entered eye-test findings. OCR/PDF extraction can be wrong and does not alter the retinal model grade. Model confidence is not accuracy. Tests not actually performed are shown as not performed/not entered rather than invented. Final diagnosis and management require a qualified eye-care professional.`};
+  return {id:uid('phcrpt'),generatedAt:new Date().toISOString(),overallSeverity:sev,overallLabel:severityNames[sev],referable:ai.referable,confidence:ai.confidence,rightLabel:right?.label||'Not available',leftLabel:left?.label||'Not available',qualitySummary:`Right: ${s.right.quality} (${s.right.qualityScore??'—'}/100) · Left: ${s.left.quality} (${s.left.qualityScore??'—'}/100)`,systemicContext:systemic,retinalSummary:retinal,clinicalFindings:buildClinicalFindingRows(s),recommendation,followUp,priority,limitation:`This report combines a trained research fundus classifier with ${c.reportAnalysis?'automatically extracted diabetes-report data':'structured diabetes context'}${c.verifiedByPHC?' reviewed by PHC staff':' that has not been marked PHC-verified'} and staff-entered eye-test findings. OCR/PDF extraction can be wrong and does not alter the retinal model grade. Model confidence is not accuracy. Tests or observations that were not actually performed or entered are omitted from the findings table rather than invented. Final diagnosis and management require a qualified eye-care professional.`};
 }
 
 export function ScreeningWorkspace(){
@@ -209,7 +284,7 @@ function EyePanel({label,eye,onFile,onChange}:{label:string;eye:EyeScreening;onF
     <div className="fundus-preview">{eye.image?.dataUrl?<img src={eye.image.dataUrl}/>:<div className="fundus-placeholder"><Eye size={34}/><b>Import color fundus image</b><span>Use fundus-camera export · not laptop webcam</span></div>}</div>
     <label className="fundus-upload-btn"><input hidden type="file" accept="image/*" onChange={e=>onFile(e.target.files?.[0])}/><Camera size={17}/>{eye.image?'Replace fundus image':'Upload fundus image'}</label>
     {eye.image?<div className={`quality-panel ${eye.quality}`}><div><b>{eye.quality==='good'?'Gradable — ready for model':eye.quality==='enhance'?'Gradable but borderline — enhancement/review':'Ungradable — recapture required'}</b><span>{eye.qualityGuidance||'Quality assessment completed.'}</span></div><div className="quality-score"><strong>{eye.qualityScore??'—'}</strong><small>/100 quality</small></div><div className="quality-source">{eye.qualityMethod==='browser-precheck'?'Browser pre-check only':eye.qualityMethod?.includes('trained')?'CNN gradability gate':'Quality service'}</div></div>:<div className="notice">A real fundus image is required. The operator cannot manually force image quality to “Good”.</div>}
-    <details className="clinical-observations" open><summary>Detailed ophthalmology / retinal findings</summary><p className="small clinical-note">Enter only measurements/findings actually available at the PHC or from a connected ophthalmic device. Leave unavailable tests blank; the report will mark them as not performed.</p><div className="clinical-observation-grid">{([
+    <details className="clinical-observations" open><summary>Detailed ophthalmology / retinal findings</summary><p className="small clinical-note">Enter only measurements/findings actually available at the PHC or from a connected ophthalmic device. Leave unavailable tests blank; the report will omit those rows.</p><div className="clinical-observation-grid">{([
       ['visualAcuity','Visual acuity / BCVA'],['intraocularPressure','Intraocular pressure (mmHg)'],['anteriorSegment','Anterior segment'],['ophthalmoscopy','Ophthalmoscopy / retinal appearance'],['retinalStructure','Retinal structure'],['opticDisc','Optic disc'],['macula','Macula / fovea'],['vessels','Retinal vessels'],['microaneurysm','Microaneurysms'],['hemorrhage','Hemorrhages'],['exudate','Hard exudates'],['cottonWoolSpots','Cotton-wool spots'],['neovascularization','Neovascularization'],['laserScars','Laser scars / prior treatment'],['retinalEdema','Retinal edema / thickening'],['oct','SD-OCT'],['fluoresceinAngiography','Fluorescein angiography / UWFA'],['visualField','Visual field'],['other','Other finding'],['notes','Clinical notes']
     ] as [keyof ClinicalObservation,string][]).map(([k,label])=><div className="field" key={String(k)}><label>{label}</label>{k==='notes'||k==='ophthalmoscopy'||k==='oct'||k==='fluoresceinAngiography'?<textarea className="textarea compact-clinical-textarea" value={o[k]||''} onChange={e=>set(k,e.target.value)} placeholder="Enter finding only if performed / observed"/>:<input className="input" value={o[k]||''} onChange={e=>set(k,e.target.value)} placeholder="Enter finding only if available"/>}</div>)}</div></details>
   </div>
@@ -219,7 +294,7 @@ function DetailedReportView({screening:s,patient:p}:{screening:Screening;patient
   const ai=s.aiResult!;const r=s.phcReport!;const tone=r.priority==='urgent'?'bad':r.priority==='priority'?'warn':undefined;
   return <section className="phc-report-shell"><div className="phc-report-head"><div><span className="eyebrow">Generated PHC screening report</span><h2>{r.overallLabel} · Level {r.overallSeverity}</h2><p>{p.name} · {fmt(r.generatedAt)}</p></div><div className="report-actions"><Status tone={tone}>{r.priority.toUpperCase()}</Status><button className="btn ghost" onClick={()=>downloadPHCReport(s,p)}><FileDown size={16}/>Download PDF</button></div></div>
     <div className="report-metric-grid"><ReportMetric label="Model confidence" value={`${Math.round(r.confidence*100)}%`} note="Not the same as accuracy"/><ReportMetric label="Referable" value={r.referable?'YES':'NO'} note="Prototype threshold: level 2–4"/><ReportMetric label="Right eye" value={r.rightLabel} note={`${s.right.qualityScore??'—'}/100 image quality`}/><ReportMetric label="Left eye" value={r.leftLabel} note={`${s.left.qualityScore??'—'}/100 image quality`}/></div>
-    <div className="clinical-findings-card"><div className="section-head"><div><span className="eyebrow">Ophthalmology / retinal clinical findings</span><h3>Detailed examination table</h3><p className="muted">AI-derived fundus grade is kept separate from PHC-entered examination findings. Missing tests are explicitly marked.</p></div><FileText size={22}/></div><div className="clinical-findings-table-wrap"><table className="clinical-findings-table"><thead><tr><th>Examination / Test</th><th>Right eye</th><th>Left eye</th><th>Source</th></tr></thead><tbody>{(r.clinicalFindings||buildClinicalFindingRows(s)).map((row,i)=><tr key={i}><td><b>{row.examination}</b></td><td>{row.right}</td><td>{row.left}</td><td><span className={`finding-source ${row.source==='Not performed'?'muted-source':''}`}>{row.source}</span></td></tr>)}</tbody></table></div></div>
+    <div className="clinical-findings-card"><div className="section-head"><div><span className="eyebrow">Ophthalmology / retinal clinical findings</span><h3>Detailed examination table</h3><p className="muted">AI-derived fundus grades are shown automatically. Only PHC findings that were actually entered are displayed; unperformed tests are omitted.</p></div><FileText size={22}/></div><div className="clinical-findings-table-wrap"><table className="clinical-findings-table"><thead><tr><th>Examination / Test</th><th>Right eye</th><th>Left eye</th><th>Source</th></tr></thead><tbody>{visibleClinicalFindingRows(s).map((row,i)=><tr key={i}><td><b>{row.examination}</b></td><td>{row.right}</td><td>{row.left}</td><td><span className={`finding-source ${row.source==='Not performed'?'muted-source':''}`}>{row.source}</span></td></tr>)}</tbody></table></div></div>
     <div className="grid grid-2 report-detail-grid"><div className="card"><span className="eyebrow">Retinal AI summary</span>{r.retinalSummary.map((x,i)=><div className="report-bullet" key={i}><BrainCircuit size={15}/><span>{x}</span></div>)}<h3 style={{marginTop:18}}>Image quality</h3><p>{r.qualitySummary}</p><p className="small">Model: {ai.model?.name||'Trained DR model'} · {ai.model?.source||'configured model source'}</p></div><div className="card"><span className="eyebrow">Systemic diabetes context</span>{r.systemicContext.length?r.systemicContext.map((x,i)=><div className="report-bullet" key={i}><Droplets size={15}/><span>{x}</span></div>):<p className="muted">No structured systemic context was available beyond the attached report.</p>}<div className="context-source"><FileCheck2 size={18}/><span><b>Source document</b><small>{s.clinicalContext?.diabetesReport?.name||'Not attached'}{s.clinicalContext?.reportAnalysis?` · ${s.clinicalContext.reportAnalysis.method} · ${s.clinicalContext.reportAnalysis.overallConfidence}% extraction confidence`:''}</small></span></div></div></div>
     <div className={`clinical-recommendation ${r.priority}`}><div><Stethoscope size={26}/><span><small>PHC coordination recommendation</small><b>{r.recommendation}</b><p>{r.followUp}</p></span></div></div>
     <div className="report-limit"><AlertTriangle size={17}/><p>{r.limitation}</p></div>
@@ -237,12 +312,12 @@ function downloadPHCReport(s:Screening,p:any){
   doc.setFontSize(18);doc.setFont('helvetica','bold');doc.text('DRISHTI-AI — Detailed PHC Retinal Screening Report',16,y);y+=9;doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text('Bilateral fundus AI + verified systemic context + entered ophthalmic examination findings',16,y);y+=10;
   line('Patient',p.name);line('Generated',fmt(r.generatedAt));if(s.clinicalContext?.reportAnalysis)line('Diabetes report extraction',`${s.clinicalContext.reportAnalysis.method} · ${s.clinicalContext.reportAnalysis.overallConfidence}% extraction confidence · ${s.clinicalContext.verifiedByPHC?'PHC reviewed':'not marked PHC-reviewed'}`);if(s.clinicalContext?.reportAnalysis?.allMeasurements?.length){heading('Auto-extracted Systemic / Laboratory Measurements');s.clinicalContext.reportAnalysis.allMeasurements.forEach(m=>line(m.name,`${m.value}${m.unit?` ${m.unit}`:''}${m.referenceRange?` · ref ${m.referenceRange}`:''} · OCR ${m.confidence}%`));}line('Overall AI grade',`Level ${r.overallSeverity} — ${r.overallLabel}`);line('Referable',r.referable?'Yes':'No');line('Model confidence',`${Math.round(r.confidence*100)}% (confidence is not accuracy)`);line('Right fundus AI',`${r.rightLabel}; quality ${s.right.quality} ${s.right.qualityScore??'—'}/100`);line('Left fundus AI',`${r.leftLabel}; quality ${s.left.quality} ${s.left.qualityScore??'—'}/100`);
   heading('Ophthalmology / Retinal Clinical Findings');
-  const rows=r.clinicalFindings||buildClinicalFindingRows(s);
+  const rows=visibleClinicalFindingRows(s);
   rows.forEach(row=>{ensure(22);doc.setFont('helvetica','bold');doc.text(row.examination,16,y);y+=5;doc.setFont('helvetica','normal');const rr=doc.splitTextToSize(`Right: ${row.right}`,178);doc.text(rr,20,y);y+=rr.length*4.5;const ll=doc.splitTextToSize(`Left: ${row.left}`,178);doc.text(ll,20,y);y+=ll.length*4.5;doc.setTextColor(105,120,125);doc.text(`Source: ${row.source}`,20,y);doc.setTextColor(0,0,0);y+=7});
   heading('Systemic Diabetes Context');line('Context',r.systemicContext.join(' | ')||'Not available');
   heading('Retinal AI Summary');line('AI findings',r.retinalSummary.join(' | ')||'Not available');
   heading('Clinical Coordination');line('Recommendation',r.recommendation);line('Follow-up',r.followUp);line('Model',`${ai.model?.name||'trained model'} · ${ai.model?.source||''}`);line('Limitations',r.limitation);
-  ensure(10);doc.setFontSize(8);doc.setTextColor(90,100,105);doc.text('Decision support only. Tests not performed are not inferred. Final diagnosis and management require qualified ophthalmologist/retina-specialist review.',16,y+4);doc.setTextColor(0,0,0);
+  ensure(10);doc.setFontSize(8);doc.setTextColor(90,100,105);doc.text('Decision support only. Unperformed tests are omitted and are never inferred. Final diagnosis and management require qualified ophthalmologist/retina-specialist review.',16,y+4);doc.setTextColor(0,0,0);
   doc.save(`DRISHTI-AI-${String(p.name).replace(/\s+/g,'-')}-Detailed-PHC-Report.pdf`)
 }
 
