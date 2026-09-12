@@ -290,37 +290,792 @@ function EyePanel({label,eye,onFile,onChange}:{label:string;eye:EyeScreening;onF
   </div>
 }
 
+
+function ophthalmologyCaseRows(s:Screening){
+  const ai=s.aiResult;
+  const r=s.right.observations||{};
+  const l=s.left.observations||{};
+
+  const rows:{test:string;finding:string;source:string}[]=[];
+
+  const clean=(v?:string)=>String(v||'').trim();
+
+  const both=(rv?:string,lv?:string)=>{
+    const a=clean(rv);
+    const b=clean(lv);
+
+    if(!a&&!b)return '';
+
+    if(a&&b&&a.toLowerCase()===b.toLowerCase()){
+      return `Both eyes: ${a}`;
+    }
+
+    return [
+      a?`Right eye: ${a}`:'',
+      b?`Left eye: ${b}`:''
+    ].filter(Boolean).join('\n');
+  };
+
+  const add=(
+    test:string,
+    rv?:string,
+    lv?:string,
+    source='PHC / ophthalmic examination'
+  )=>{
+    const finding=both(rv,lv);
+    if(finding)rows.push({test,finding,source});
+  };
+
+  const ar=ai?.perEye?.right;
+  const al=ai?.perEye?.left;
+
+  if(ai){
+    rows.push({
+      test:'Color fundus photograph — AI DR screening',
+      finding:[
+        ar
+          ? `Right eye: ${ar.label} · model confidence ${Math.round(ar.confidence*100)}%`
+          : '',
+        al
+          ? `Left eye: ${al.label} · model confidence ${Math.round(al.confidence*100)}%`
+          : ''
+      ].filter(Boolean).join('\n') || `Overall grade: ${severityNames[ai.severity]}`,
+      source:'Trained EfficientNetB0 DR classifier'
+    });
+
+    rows.push({
+      test:'Overall diabetic retinopathy screening grade',
+      finding:`${severityNames[ai.severity]} · Level ${ai.severity}`,
+      source:'Trained EfficientNetB0 DR classifier'
+    });
+
+    rows.push({
+      test:'Referable diabetic retinopathy status',
+      finding:`${ai.referable?'Referable':'Non-referable'} · overall model confidence ${Math.round(ai.confidence*100)}%`,
+      source:'AI screening threshold'
+    });
+  }
+
+  rows.push({
+    test:'Fundus image quality / gradability',
+    finding:
+      `Right eye: ${s.right.quality}`+
+      `${typeof s.right.qualityScore==='number'?` · ${s.right.qualityScore}/100`:''}`+
+      `\nLeft eye: ${s.left.quality}`+
+      `${typeof s.left.qualityScore==='number'?` · ${s.left.qualityScore}/100`:''}`,
+    source:'Image-quality service'
+  });
+
+  add(
+    'Best-corrected / available visual acuity (BCVA)',
+    r.visualAcuity,
+    l.visualAcuity
+  );
+
+  add(
+    'Non-contact / available intraocular pressure',
+    r.intraocularPressure,
+    l.intraocularPressure
+  );
+
+  add(
+    'Anterior segment examination',
+    r.anteriorSegment,
+    l.anteriorSegment
+  );
+
+  add(
+    'Ophthalmoscopy / retinal appearance',
+    r.ophthalmoscopy,
+    l.ophthalmoscopy
+  );
+
+  add(
+    'Color fundus photograph — retinal structure',
+    r.retinalStructure,
+    l.retinalStructure
+  );
+
+  add(
+    'Optic disc',
+    r.opticDisc,
+    l.opticDisc
+  );
+
+  add(
+    'Macula / foveal region',
+    r.macula,
+    l.macula
+  );
+
+  add(
+    'Retinal vessels',
+    r.vessels,
+    l.vessels
+  );
+
+  add(
+    'Microaneurysms',
+    r.microaneurysm,
+    l.microaneurysm
+  );
+
+  add(
+    'Retinal hemorrhages',
+    r.hemorrhage,
+    l.hemorrhage
+  );
+
+  add(
+    'Hard exudates',
+    r.exudate,
+    l.exudate
+  );
+
+  add(
+    'Cotton-wool spots',
+    r.cottonWoolSpots,
+    l.cottonWoolSpots
+  );
+
+  add(
+    'Neovascularization',
+    r.neovascularization,
+    l.neovascularization
+  );
+
+  add(
+    'Laser scars / previous retinal treatment',
+    r.laserScars,
+    l.laserScars
+  );
+
+  add(
+    'Retinal edema / retinal thickening',
+    r.retinalEdema,
+    l.retinalEdema
+  );
+
+  add(
+    'Spectral-domain OCT (SD-OCT)',
+    r.oct,
+    l.oct,
+    'PHC / OCT report'
+  );
+
+  add(
+    'Fluorescein angiography / UWFA',
+    r.fluoresceinAngiography,
+    l.fluoresceinAngiography,
+    'PHC / angiography report'
+  );
+
+  add(
+    'Visual field examination',
+    r.visualField,
+    l.visualField,
+    'PHC / visual-field report'
+  );
+
+  add(
+    'Other ophthalmic finding',
+    r.other,
+    l.other
+  );
+
+  add(
+    'Clinical notes',
+    r.notes,
+    l.notes,
+    'PHC clinical notes'
+  );
+
+  return rows;
+}
+
 function DetailedReportView({screening:s,patient:p}:{screening:Screening;patient:any}){
-  const ai=s.aiResult!;const r=s.phcReport!;const tone=r.priority==='urgent'?'bad':r.priority==='priority'?'warn':undefined;
-  return <section className="phc-report-shell"><div className="phc-report-head"><div><span className="eyebrow">Generated PHC screening report</span><h2>{r.overallLabel} · Level {r.overallSeverity}</h2><p>{p.name} · {fmt(r.generatedAt)}</p></div><div className="report-actions"><Status tone={tone}>{r.priority.toUpperCase()}</Status><button className="btn ghost" onClick={()=>downloadPHCReport(s,p)}><FileDown size={16}/>Download PDF</button></div></div>
-    <div className="report-metric-grid"><ReportMetric label="Model confidence" value={`${Math.round(r.confidence*100)}%`} note="Not the same as accuracy"/><ReportMetric label="Referable" value={r.referable?'YES':'NO'} note="Prototype threshold: level 2–4"/><ReportMetric label="Right eye" value={r.rightLabel} note={`${s.right.qualityScore??'—'}/100 image quality`}/><ReportMetric label="Left eye" value={r.leftLabel} note={`${s.left.qualityScore??'—'}/100 image quality`}/></div>
-    <div className="clinical-findings-card"><div className="section-head"><div><span className="eyebrow">Ophthalmology / retinal clinical findings</span><h3>Detailed examination table</h3><p className="muted">AI-derived fundus grades are shown automatically. Only PHC findings that were actually entered are displayed; unperformed tests are omitted.</p></div><FileText size={22}/></div><div className="clinical-findings-table-wrap"><table className="clinical-findings-table"><thead><tr><th>Examination / Test</th><th>Right eye</th><th>Left eye</th><th>Source</th></tr></thead><tbody>{visibleClinicalFindingRows(s).map((row,i)=><tr key={i}><td><b>{row.examination}</b></td><td>{row.right}</td><td>{row.left}</td><td><span className={`finding-source ${row.source==='Not performed'?'muted-source':''}`}>{row.source}</span></td></tr>)}</tbody></table></div></div>
-    <div className="grid grid-2 report-detail-grid"><div className="card"><span className="eyebrow">Retinal AI summary</span>{r.retinalSummary.map((x,i)=><div className="report-bullet" key={i}><BrainCircuit size={15}/><span>{x}</span></div>)}<h3 style={{marginTop:18}}>Image quality</h3><p>{r.qualitySummary}</p><p className="small">Model: {ai.model?.name||'Trained DR model'} · {ai.model?.source||'configured model source'}</p></div><div className="card"><span className="eyebrow">Systemic diabetes context</span>{r.systemicContext.length?r.systemicContext.map((x,i)=><div className="report-bullet" key={i}><Droplets size={15}/><span>{x}</span></div>):<p className="muted">No structured systemic context was available beyond the attached report.</p>}<div className="context-source"><FileCheck2 size={18}/><span><b>Source document</b><small>{s.clinicalContext?.diabetesReport?.name||'Not attached'}{s.clinicalContext?.reportAnalysis?` · ${s.clinicalContext.reportAnalysis.method} · ${s.clinicalContext.reportAnalysis.overallConfidence}% extraction confidence`:''}</small></span></div></div></div>
-    <div className={`clinical-recommendation ${r.priority}`}><div><Stethoscope size={26}/><span><small>PHC coordination recommendation</small><b>{r.recommendation}</b><p>{r.followUp}</p></span></div></div>
-    <div className="report-limit"><AlertTriangle size={17}/><p>{r.limitation}</p></div>
+  const ai=s.aiResult!;
+  const r=s.phcReport!;
+  const tone=
+    r.priority==='urgent'
+      ?'bad'
+      :r.priority==='priority'
+        ?'warn'
+        :undefined;
+
+  const rows=ophthalmologyCaseRows(s);
+  const labs=s.clinicalContext?.reportAnalysis?.allMeasurements||[];
+
+  return <section className="phc-report-shell clinical-case-sheet">
+
+    <div className="phc-report-head">
+      <div>
+        <span className="eyebrow">
+          Ophthalmology / Retinal Clinical Findings
+        </span>
+
+        <h2>Detailed PHC retinal screening report</h2>
+
+        <p>
+          {p.name} · {fmt(r.generatedAt)}
+        </p>
+      </div>
+
+      <div className="report-actions">
+        <Status tone={tone}>
+          {r.priority.toUpperCase()}
+        </Status>
+
+        <button
+          className="btn ghost"
+          onClick={()=>downloadPHCReport(s,p)}
+        >
+          <FileDown size={16}/>
+          Download clinical PDF
+        </button>
+      </div>
+    </div>
+
+    <div className="case-patient-strip">
+      <div>
+        <small>Patient</small>
+        <b>{p.name}</b>
+      </div>
+
+      <div>
+        <small>Age / Gender</small>
+        <b>{ageFromDOB(p.dob)} / {p.gender||'—'}</b>
+      </div>
+
+      <div>
+        <small>Overall AI grade</small>
+        <b>{r.overallLabel}</b>
+      </div>
+
+      <div>
+        <small>Referable</small>
+        <b>{r.referable?'Yes':'No'}</b>
+      </div>
+
+      <div>
+        <small>Model confidence</small>
+        <b>{Math.round(r.confidence*100)}%</b>
+      </div>
+    </div>
+
+    <div className="clinical-case-table-wrap">
+      <table className="clinical-case-table">
+        <thead>
+          <tr>
+            <th>Examination / Test</th>
+            <th>Clinical finding</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {rows.map((row,i)=>
+            <tr key={i}>
+              <td>
+                <b>{row.test}</b>
+              </td>
+
+              <td className="case-finding-cell">
+                {row.finding
+                  .split('\n')
+                  .map((x,j)=>
+                    <span key={j}>{x}</span>
+                  )
+                }
+
+                <small className="case-source-inline">
+                  Source: {row.source}
+                </small>
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+
+    {labs.length>0&&
+      <div className="case-section">
+
+        <div className="section-head">
+          <div>
+            <span className="eyebrow">
+              Systemic / Laboratory Context
+            </span>
+
+            <h3>
+              Measurements extracted from uploaded medical report
+            </h3>
+          </div>
+
+          <Droplets size={21}/>
+        </div>
+
+        <div className="clinical-case-table-wrap compact">
+          <table className="clinical-case-table">
+            <thead>
+              <tr>
+                <th>Parameter / Test</th>
+                <th>Published / Reported Finding</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {labs.map((m,i)=>
+                <tr key={`${m.name}-${i}`}>
+                  <td>
+                    <b>{m.name}</b>
+                  </td>
+
+                  <td className="case-finding-cell">
+                    <span>
+                      {m.value}
+                      {m.unit?` ${m.unit}`:''}
+                    </span>
+
+                    {m.referenceRange&&
+                      <span>
+                        Reference range: {m.referenceRange}
+                      </span>
+                    }
+
+                    <small className="case-source-inline">
+                      Extraction confidence: {m.confidence}%
+                    </small>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <div className="grid grid-2 report-detail-grid">
+
+      <div className="card">
+        <span className="eyebrow">
+          AI Screening Interpretation
+        </span>
+
+        <h3>{r.overallLabel}</h3>
+
+        {r.retinalSummary.map((x,i)=>
+          <div className="report-bullet" key={i}>
+            <BrainCircuit size={15}/>
+            <span>{x}</span>
+          </div>
+        )}
+
+        <h3 style={{marginTop:18}}>
+          Image quality
+        </h3>
+
+        <p>{r.qualitySummary}</p>
+
+        <p className="small">
+          Model: {ai.model?.name||'Trained DR model'}
+          {' · '}
+          {ai.model?.source||'configured model source'}
+        </p>
+      </div>
+
+      <div className="card">
+        <span className="eyebrow">
+          Systemic Diabetes Context
+        </span>
+
+        {r.systemicContext.length
+          ?r.systemicContext.map((x,i)=>
+            <div className="report-bullet" key={i}>
+              <Droplets size={15}/>
+              <span>{x}</span>
+            </div>
+          )
+          :<p className="muted">
+            No structured systemic context was available.
+          </p>
+        }
+
+        <div className="context-source">
+          <FileCheck2 size={18}/>
+
+          <span>
+            <b>Source document</b>
+
+            <small>
+              {s.clinicalContext?.diabetesReport?.name||'Not attached'}
+
+              {s.clinicalContext?.reportAnalysis
+                ?` · ${s.clinicalContext.reportAnalysis.method} · ${s.clinicalContext.reportAnalysis.overallConfidence}% extraction confidence`
+                :''
+              }
+            </small>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div className={`clinical-recommendation ${r.priority}`}>
+      <div>
+        <Stethoscope size={26}/>
+
+        <span>
+          <small>
+            PHC Coordination Recommendation
+          </small>
+
+          <b>{r.recommendation}</b>
+
+          <p>{r.followUp}</p>
+        </span>
+      </div>
+    </div>
+
+    <div className="report-limit">
+      <AlertTriangle size={17}/>
+
+      <p>
+        Only findings supported by the trained DR classifier,
+        uploaded reports, or PHC-entered examinations are shown.
+        Tests not performed are omitted. BCVA, IOP, OCT,
+        angiography, visual-field findings and specific retinal
+        lesions are never invented by the DR severity classifier.
+        Final diagnosis remains with the ophthalmologist.
+      </p>
+    </div>
+
   </section>
 }
 function ReportMetric({label,value,note}:{label:string;value:string;note:string}){return <div className="report-metric"><span>{label}</span><b>{value}</b><small>{note}</small></div>}
 
 function downloadPHCReport(s:Screening,p:any){
   if(!s.aiResult||!s.phcReport)return;
-  const doc=new jsPDF();const r=s.phcReport;const ai=s.aiResult;let y=18;
-  const page=()=>{doc.addPage();y=18};
-  const ensure=(h=10)=>{if(y+h>280)page()};
-  const line=(label:string,value:string)=>{ensure(12);doc.setFont('helvetica','bold');doc.text(label,16,y);doc.setFont('helvetica','normal');const lines=doc.splitTextToSize(value||'—',128);doc.text(lines,68,y);y+=Math.max(7,lines.length*5)};
-  const heading=(t:string)=>{ensure(14);y+=3;doc.setFont('helvetica','bold');doc.setFontSize(12);doc.text(t,16,y);doc.setFontSize(9);y+=7};
-  doc.setFontSize(18);doc.setFont('helvetica','bold');doc.text('DRISHTI-AI — Detailed PHC Retinal Screening Report',16,y);y+=9;doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text('Bilateral fundus AI + verified systemic context + entered ophthalmic examination findings',16,y);y+=10;
-  line('Patient',p.name);line('Generated',fmt(r.generatedAt));if(s.clinicalContext?.reportAnalysis)line('Diabetes report extraction',`${s.clinicalContext.reportAnalysis.method} · ${s.clinicalContext.reportAnalysis.overallConfidence}% extraction confidence · ${s.clinicalContext.verifiedByPHC?'PHC reviewed':'not marked PHC-reviewed'}`);if(s.clinicalContext?.reportAnalysis?.allMeasurements?.length){heading('Auto-extracted Systemic / Laboratory Measurements');s.clinicalContext.reportAnalysis.allMeasurements.forEach(m=>line(m.name,`${m.value}${m.unit?` ${m.unit}`:''}${m.referenceRange?` · ref ${m.referenceRange}`:''} · OCR ${m.confidence}%`));}line('Overall AI grade',`Level ${r.overallSeverity} — ${r.overallLabel}`);line('Referable',r.referable?'Yes':'No');line('Model confidence',`${Math.round(r.confidence*100)}% (confidence is not accuracy)`);line('Right fundus AI',`${r.rightLabel}; quality ${s.right.quality} ${s.right.qualityScore??'—'}/100`);line('Left fundus AI',`${r.leftLabel}; quality ${s.left.quality} ${s.left.qualityScore??'—'}/100`);
-  heading('Ophthalmology / Retinal Clinical Findings');
-  const rows=visibleClinicalFindingRows(s);
-  rows.forEach(row=>{ensure(22);doc.setFont('helvetica','bold');doc.text(row.examination,16,y);y+=5;doc.setFont('helvetica','normal');const rr=doc.splitTextToSize(`Right: ${row.right}`,178);doc.text(rr,20,y);y+=rr.length*4.5;const ll=doc.splitTextToSize(`Left: ${row.left}`,178);doc.text(ll,20,y);y+=ll.length*4.5;doc.setTextColor(105,120,125);doc.text(`Source: ${row.source}`,20,y);doc.setTextColor(0,0,0);y+=7});
-  heading('Systemic Diabetes Context');line('Context',r.systemicContext.join(' | ')||'Not available');
-  heading('Retinal AI Summary');line('AI findings',r.retinalSummary.join(' | ')||'Not available');
-  heading('Clinical Coordination');line('Recommendation',r.recommendation);line('Follow-up',r.followUp);line('Model',`${ai.model?.name||'trained model'} · ${ai.model?.source||''}`);line('Limitations',r.limitation);
-  ensure(10);doc.setFontSize(8);doc.setTextColor(90,100,105);doc.text('Decision support only. Unperformed tests are omitted and are never inferred. Final diagnosis and management require qualified ophthalmologist/retina-specialist review.',16,y+4);doc.setTextColor(0,0,0);
-  doc.save(`DRISHTI-AI-${String(p.name).replace(/\s+/g,'-')}-Detailed-PHC-Report.pdf`)
-}
 
+  const doc=new jsPDF();
+
+  const r=s.phcReport;
+  const ai=s.aiResult;
+  const rows=ophthalmologyCaseRows(s);
+  const labs=s.clinicalContext?.reportAnalysis?.allMeasurements||[];
+
+  let y=18;
+
+  const page=()=>{
+    doc.addPage();
+    y=18;
+  };
+
+  const ensure=(h=10)=>{
+    if(y+h>282)page();
+  };
+
+  const heading=(t:string)=>{
+    ensure(16);
+
+    y+=4;
+
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(13);
+    doc.text(t,16,y);
+
+    y+=8;
+    doc.setFontSize(9);
+  };
+
+  const line=(label:string,value:string)=>{
+    ensure(13);
+
+    doc.setFont('helvetica','bold');
+    doc.text(label,16,y);
+
+    doc.setFont('helvetica','normal');
+
+    const text=doc.splitTextToSize(
+      value||'—',
+      125
+    );
+
+    doc.text(text,70,y);
+
+    y+=Math.max(
+      7,
+      text.length*4.6
+    );
+  };
+
+  const tableHeader=(
+    left:string,
+    right:string
+  )=>{
+    ensure(12);
+
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(9);
+
+    doc.rect(
+      16,
+      y,
+      178,
+      11
+    );
+
+    doc.line(
+      73,
+      y,
+      73,
+      y+11
+    );
+
+    doc.text(
+      left,
+      19,
+      y+7
+    );
+
+    doc.text(
+      right,
+      77,
+      y+7
+    );
+
+    y+=11;
+  };
+
+  const tableRow=(
+    test:string,
+    finding:string
+  )=>{
+    const leftLines=doc.splitTextToSize(
+      test,
+      51
+    );
+
+    const rightLines=doc.splitTextToSize(
+      finding,
+      112
+    );
+
+    const h=Math.max(
+      13,
+      Math.max(
+        leftLines.length,
+        rightLines.length
+      )*4.5+6
+    );
+
+    ensure(h);
+
+    doc.rect(
+      16,
+      y,
+      178,
+      h
+    );
+
+    doc.line(
+      73,
+      y,
+      73,
+      y+h
+    );
+
+    doc.setFont(
+      'helvetica',
+      'normal'
+    );
+
+    doc.text(
+      leftLines,
+      19,
+      y+6
+    );
+
+    doc.text(
+      rightLines,
+      77,
+      y+6
+    );
+
+    y+=h;
+  };
+
+  doc.setFont(
+    'helvetica',
+    'bold'
+  );
+
+  doc.setFontSize(20);
+
+  doc.text(
+    'Ophthalmology / Retinal Clinical Findings',
+    16,
+    y
+  );
+
+  y+=9;
+
+  doc.setFont(
+    'helvetica',
+    'normal'
+  );
+
+  doc.setFontSize(10);
+
+  doc.text(
+    'DRISHTI-AI detailed PHC retinal screening report',
+    16,
+    y
+  );
+
+  y+=11;
+
+  line(
+    'Patient',
+    p.name
+  );
+
+  line(
+    'Age / Gender',
+    `${ageFromDOB(p.dob)} / ${p.gender||'—'}`
+  );
+
+  line(
+    'Generated',
+    fmt(r.generatedAt)
+  );
+
+  line(
+    'Overall AI grade',
+    `${r.overallLabel} · Level ${r.overallSeverity}`
+  );
+
+  line(
+    'Referable',
+    r.referable
+      ?'Yes'
+      :'No'
+  );
+
+  line(
+    'Model confidence',
+    `${Math.round(r.confidence*100)}% (confidence is not accuracy)`
+  );
+
+  heading(
+    'Ophthalmology / Retinal Clinical Findings'
+  );
+
+  tableHeader(
+    'Examination / Test',
+    'Clinical finding'
+  );
+
+  rows.forEach(row=>{
+    tableRow(
+      row.test,
+      `${row.finding}\nSource: ${row.source}`
+    );
+  });
+
+  if(labs.length){
+    heading(
+      'Systemic / Laboratory Measurements'
+    );
+
+    tableHeader(
+      'Parameter / Test',
+      'Reported finding'
+    );
+
+    labs.forEach(m=>{
+      tableRow(
+        m.name,
+        `${m.value}${m.unit?` ${m.unit}`:''}`+
+        `${m.referenceRange?`\nReference range: ${m.referenceRange}`:''}`+
+        `\nExtraction confidence: ${m.confidence}%`
+      );
+    });
+  }
+
+  heading(
+    'AI Screening Interpretation'
+  );
+
+  line(
+    'Right eye',
+    r.rightLabel
+  );
+
+  line(
+    'Left eye',
+    r.leftLabel
+  );
+
+  line(
+    'Image quality',
+    r.qualitySummary
+  );
+
+  line(
+    'AI findings',
+    r.retinalSummary.join(' | ')
+      ||'No additional model-supported finding'
+  );
+
+  line(
+    'Model',
+    `${ai.model?.name||'trained model'} · ${ai.model?.source||''}`
+  );
+
+  heading(
+    'Clinical Coordination'
+  );
+
+  line(
+    'Recommendation',
+    r.recommendation
+  );
+
+  line(
+    'Follow-up',
+    r.followUp
+  );
+
+  ensure(30);
+
+  doc.setFontSize(8);
+
+  doc.setTextColor(
+    90,
+    100,
+    105
+  );
+
+  const note=doc.splitTextToSize(
+    'Decision support only. Only documented examinations, uploaded-report findings and model-supported screening outputs are shown. Tests not performed are omitted. BCVA, IOP, OCT, angiography, visual-field and specific lesion findings are never invented by the DR severity classifier. Final diagnosis and treatment require qualified ophthalmologist review.',
+    178
+  );
+
+  doc.text(
+    note,
+    16,
+    y+5
+  );
+
+  doc.setTextColor(
+    0,
+    0,
+    0
+  );
+
+  doc.save(
+    `DRISHTI-AI-${String(p.name).replace(/\s+/g,'-')}-Ophthalmology-Clinical-Report.pdf`
+  );
+}
 function AllScreenings({phcId}:{phcId:string}){const d=readDB();const ss=d.screenings.filter(s=>s.phcId===phcId).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));return <><PageTitle title="Screenings" sub="All PHC retinal capture sessions and AI status."/>{!ss.length?<Empty title="No screenings" body="Completed capture sessions will appear here."/>:<div className="card phc-table-card"><table className="table"><thead><tr><th>Patient</th><th>Date</th><th>R/L quality</th><th>AI grade</th><th>Status</th></tr></thead><tbody>{ss.map(s=><tr key={s.id}><td><b>{d.patients.find(p=>p.id===s.patientId)?.name}</b></td><td>{new Date(s.createdAt).toLocaleDateString()}</td><td>{s.right.quality} / {s.left.quality}</td><td>{s.aiResult?`Level ${s.aiResult.severity} · ${severityNames[s.aiResult.severity]}`:'Not run'}</td><td><Status tone={s.status==='submitted'?'warn':undefined}>{s.status}</Status></td></tr>)}</tbody></table></div>}</>}
 
 function Reports({phcId}:{phcId:string}){const d=readDB();const ss=d.screenings.filter(s=>s.phcId===phcId&&s.phcReport).sort((a,b)=>String(b.phcReport?.generatedAt).localeCompare(String(a.phcReport?.generatedAt)));return <><PageTitle title="AI Reports" sub="Structured bilateral fundus + verified diabetes-context reports."/>{!ss.length?<Empty title="No AI reports yet" body="Generate a detailed report from the fundus screening workspace."/>:<div className="grid grid-2">{ss.map(s=>{const p=d.patients.find(p=>p.id===s.patientId);const r=s.phcReport!;return <div className="card report-list-card" key={s.id}><div className="section-head"><div><span className="eyebrow">{r.overallLabel}</span><h3>{p?.name}</h3></div><Status tone={r.priority==='urgent'?'bad':r.priority==='priority'?'warn':undefined}>{r.priority}</Status></div><div className="report-list-stats"><span><b>{Math.round(r.confidence*100)}%</b><small>model confidence</small></span><span><b>{r.referable?'Yes':'No'}</b><small>referable</small></span><span><b>{s.status}</b><small>review state</small></span></div><p className="muted">{r.recommendation}</p><button className="btn ghost" onClick={()=>downloadPHCReport(s,p)}><FileDown size={16}/>Download detailed PDF</button></div>})}</div>}</>}
