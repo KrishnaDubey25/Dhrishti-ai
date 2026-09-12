@@ -102,11 +102,13 @@ def _cnn_fundus_quality(img:Image.Image):
     metrics=_engineering_quality_metrics(img)
     # The pretrained model is binary (gradable/ungradable). We expose a conservative 3-state UI:
     # high-confidence gradable -> good; lower-confidence gradable or engineering warning -> enhance; reject -> unusable.
-    severe_engineering=(not metrics['fundus_like'] or metrics['brightness']<40 or metrics['brightness']>220 or metrics['contrast']<18 or metrics['sharpness']<20)
-    borderline_engineering=(metrics['brightness']<58 or metrics['brightness']>195 or metrics['contrast']<30 or metrics['sharpness']<55)
+    # CNN remains the primary gradability decision. Secondary metrics only hard-reject near-blank/extreme captures,
+    # avoiding false rejections of valid fundus-camera exports with atypical color/illumination.
+    severe_engineering=(metrics['brightness']<8 or metrics['brightness']>248 or metrics['contrast']<5)
+    borderline_engineering=(not metrics['fundus_like'] or metrics['brightness']<45 or metrics['brightness']>215 or metrics['contrast']<20 or metrics['sharpness']<25)
     if not gradable or severe_engineering:
         quality='unusable'
-        guidance='CNN quality model considers this image ungradable, or secondary safety checks found a severe capture problem. Recapture/import a clear full-field fundus image.'
+        guidance='The trained CNN considers this image ungradable, or the image is nearly blank/extremely exposed. Recapture/import the original full-field fundus image.'
     elif confidence < 0.70 or borderline_engineering:
         quality='enhance'
         guidance='CNN considers the image gradable but confidence/capture metrics are borderline. Enhancement plus human review is recommended before DR analysis.'

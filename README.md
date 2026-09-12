@@ -147,3 +147,6 @@ The PHC case workspace now analyzes both uploaded sources before producing the d
 3. Fusion/report: systemic values are contextual evidence only and never overwrite the retinal DR grade. The report shows extraction method/confidence, per-eye image quality, per-eye DR grade/confidence, referability, clinical findings table, recommendation, follow-up and limitations.
 
 Automatic OCR/PDF extraction can make mistakes; values not found are not invented. PHC review is recommended and ophthalmologist review remains the final clinical layer.
+
+## PHC table-report extraction update
+The PHC report extractor now understands common laboratory tables, preserves all recognized measurements with reference ranges, and separately auto-fills supported diabetes-context values. OCR confidence is shown and staff review remains required. Browser-only fundus pre-checks are deliberately non-diagnostic and avoid false rejection; the trained CNN backend remains the clinical gradability gate.

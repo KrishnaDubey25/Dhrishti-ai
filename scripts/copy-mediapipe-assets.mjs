@@ -31,10 +31,9 @@ try {
 }
 
 
-// Cache PDF.js worker locally so Vite/TypeScript does not need ?url imports.
+// Cache PDF.js worker locally so Vite/TypeScript does not depend on ?url worker imports.
 const pdfWorkerSource = resolve(root, 'node_modules/pdfjs-dist/build/pdf.worker.min.mjs');
 const pdfWorkerTarget = resolve(root, 'public/pdfjs/pdf.worker.min.mjs');
-
 try {
   await mkdir(dirname(pdfWorkerTarget), { recursive: true });
   await cp(pdfWorkerSource, pdfWorkerTarget, { force: true });
