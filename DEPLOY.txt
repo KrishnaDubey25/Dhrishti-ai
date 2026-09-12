@@ -1,0 +1,18 @@
+DRISHTI-AI FULL UPDATED BUILD
+
+1. Extract ZIP.
+2. Open Terminal in the extracted drishti-ai project.
+3. Install dependencies:
+   npm install
+4. Build:
+   npm run build
+5. For production Vercel, ensure this environment variable exists:
+   VITE_DR_API_URL=https://dhrishti-ai-backend.vercel.app
+6. Deploy:
+   vercel --prod --force
+
+The trained DR backend currently used by the frontend:
+https://dhrishti-ai-backend.vercel.app
+
+Clinical safety:
+AI output is screening/decision support. Final diagnosis and treatment remain with the ophthalmologist.
