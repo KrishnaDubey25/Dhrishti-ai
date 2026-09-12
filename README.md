@@ -74,3 +74,31 @@ See `VERIFICATION.md` for checks and known environment limitations.
 
 ## Patient report flow
 After guided eye capture, DRISHTI-AI now automatically generates and saves a **Preliminary Screening Report** containing only patient-entered health context, questionnaire-based screening urgency, capture status, and the recommended next step. It is clearly labelled as non-diagnostic. If a real fundus image is analyzed by the configured trained DR backend, a separate **AI Retinal Screening Report** is generated with severity, referable status, model confidence, and explanation. Both generated PDFs appear in the Patient Reports area.
+
+## Patient advanced eye-capture flow
+
+The patient flow after the health questionnaire is:
+
+1. Start camera (HTTPS + browser camera permission required).
+2. Place only one eye inside the oval guide.
+3. MediaPipe eye landmarks are used when available; a guided fallback keeps the workflow usable if the detector CDN/model is unavailable.
+4. When alignment is stable the frame turns green, a high two-tone buzzer sounds, then a visible 3 → 2 → 1 countdown runs.
+5. The saved image is cropped to the eye region; full-face frames are not used as the screening image.
+6. A shutter tone confirms capture, followed by an animated scan/processing stage.
+7. The patient receives a **Preliminary Screening Urgency** result (Low / Moderate / High / Critical), a triage-index donut chart, external-eye image-quality score, reasons, next action, and downloadable PDF report.
+8. Live nearby health centres can be discovered with browser geolocation; DRISHTI-connected PHCs can be booked from the booking workflow.
+9. A real retinal/fundus image can optionally be uploaded for the trained DR model. The external-eye camera photo is never sent to the DR classifier.
+
+### Important clinical boundary
+
+The normal phone/laptop camera image cannot visualize the retina and therefore is **not used to diagnose diabetic retinopathy**. Patient-side Low/Moderate/High/Critical is a screening-urgency category derived primarily from the entered health/risk context. The eye photo contributes eye-presence/alignment and external-image-quality evidence only. A PHC fundus image is required for retinal model screening, followed by ophthalmologist review for the final clinical assessment.
+
+## Camera reliability update
+- Auto-capture now requires MediaPipe eye-landmark tracking; guided fallback never blind-auto-captures.
+- The eye must remain stable before and throughout the 3-2-1 countdown. Center drift or eye-size change cancels the countdown and returns to alignment mode.
+- Start Camera unlocks the Web Audio context; a dedicated Enable / test sound control verifies buzzer audio. The auto sequence uses a loud double buzzer, per-count tone, vibration where supported, and a synthesized shutter effect.
+- The captured crop is tighter around one eye. Manual capture remains available as a guided fallback.
+- After capture, the app actually scans the saved crop pixels for brightness, contrast, sharpness/detail, glare and dark-area ratio before generating the report.
+- The post-capture Low / Moderate / High / Critical category is a screening-urgency result from Q&A after image-quality verification, not a retinal diagnosis.
+- LOW: no urgent PHC recommendation is shown. The UI gives the next DRISHTI self-check interval (6 months when diabetes is present/uncertain, otherwise 12 months) and keeps routine retinal-screening guidance separate.
+- MODERATE/HIGH/CRITICAL: PHC/clinical next steps and nearby PHC discovery are shown.

@@ -1,7 +1,7 @@
 export type Role='patient'|'phc'|'doctor';
 export type Severity=0|1|2|3|4;
 export type Quality='good'|'enhance'|'unusable';
-export type RiskBand='low'|'moderate'|'high';
+export type RiskBand='low'|'moderate'|'high'|'critical';
 export interface User{ id:string; role:Role; name:string; email:string; password:string; phcId?:string; firstLogin?:boolean; }
 export interface UploadRecord{ id:string; name:string; type:string; size:number; dataUrl?:string; uploadedAt:string; source?:'patient'|'fundus-camera'|'camera'; patientId?:string; category?:'medical-upload'|'preliminary-screening'|'ai-screening'; generated?:boolean; }
 export interface RiskAssessment{ band:RiskBand; score:number; reasons:string[]; nextStep:string; calculatedAt:string; method:string; }
