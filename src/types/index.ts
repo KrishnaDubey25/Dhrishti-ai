@@ -3,7 +3,7 @@ export type Severity=0|1|2|3|4;
 export type Quality='good'|'enhance'|'unusable';
 export type RiskBand='low'|'moderate'|'high'|'critical';
 export interface User{ id:string; role:Role; name:string; email:string; password:string; phcId?:string; firstLogin?:boolean; }
-export interface UploadRecord{ id:string; name:string; type:string; size:number; dataUrl?:string; uploadedAt:string; source?:'patient'|'fundus-camera'|'camera'; patientId?:string; category?:'medical-upload'|'preliminary-screening'|'ai-screening'; generated?:boolean; }
+export interface UploadRecord{ id:string; name:string; type:string; size:number; dataUrl?:string; uploadedAt:string; source?:'patient'|'fundus-camera'|'camera'; patientId?:string; category?:'medical-upload'|'preliminary-screening'|'ai-screening'; generated?:boolean; eyeSide?:'left'|'right'; }
 export interface RiskAssessment{ band:RiskBand; score:number; reasons:string[]; nextStep:string; calculatedAt:string; method:string; }
 export interface OnboardingData{ diabetesStatus:string; duration:string; treatment:string; medication:string; hba1c?:string; systolicBP?:string; cholesterol?:string; previousEyeExam:string; eyeProblems:string; symptoms:string; drHistory:string; medicalContext:string; currentTreatment:string; uploadedReports:UploadRecord[]; risk?:RiskAssessment; }
 export interface PatientProfile{ id:string; userId:string; name:string; email:string; phone?:string; dob?:string; gender?:string; address?:string; emergencyContact?:string; profileComplete:number; onboarding?:OnboardingData; }

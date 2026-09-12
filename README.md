@@ -102,3 +102,11 @@ The normal phone/laptop camera image cannot visualize the retina and therefore i
 - The post-capture Low / Moderate / High / Critical category is a screening-urgency result from Q&A after image-quality verification, not a retinal diagnosis.
 - LOW: no urgent PHC recommendation is shown. The UI gives the next DRISHTI self-check interval (6 months when diabetes is present/uncertain, otherwise 12 months) and keeps routine retinal-screening guidance separate.
 - MODERATE/HIGH/CRITICAL: PHC/clinical next steps and nearby PHC discovery are shown.
+
+## Left / Right eye acquisition update
+- Patient explicitly selects Right Eye or Left Eye before acquisition.
+- Camera landmark tracking follows the selected anatomical eye.
+- Patient can switch between Advanced Camera and Upload Eye Photo on the same screen.
+- Uploaded eye photos go through the same brightness / contrast / detail / glare quality scan.
+- Left and right preliminary reports are saved separately and labeled in Reports.
+- External-eye images are used for capture-quality evidence only; retinal DR grading remains restricted to fundus images.
