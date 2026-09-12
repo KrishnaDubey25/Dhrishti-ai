@@ -1,52 +1,28 @@
-# DRISHTI-AI — Verification Notes
+# DRISHTI-AI verification notes
 
-## Checks completed in this build workspace
+## Consolidated workflow in this edition
+- Patient account -> first-login health questionnaire -> guided eye capture -> screening guidance -> live PHC discovery/booking.
+- Guided capture uses a deterministic camera state machine: camera permission -> preview -> detector loading -> MediaPipe eye lock when available -> transparent guided fallback when unavailable -> green hold -> audible countdown -> auto capture. Manual capture and Test sound are always available while the camera is active.
+- External-eye capture is never used for DR grading. Real DR grading requires a fundus/retinal image.
+- Live nearby healthcare discovery uses browser geolocation + OpenStreetMap/Overpass. In-app booking is restricted to DRISHTI-registered PHCs.
+- PHC registration can save center GPS coordinates for nearby matching.
+- PHC fundus workflow stores right/left images, model/pre-check driven quality, clinical observations and screening records.
+- The Python AI service includes the trained fundus-quality CNN ensemble integration and the trained 5-class DR model adapter. Ungradable images block DR inference.
+- Doctor workspace separates AI recommendation from final ophthalmologist assessment and supports referral, follow-up, care plans and video-consultation handoff.
+- SPA Vercel routing is configured with vercel.json. Heavy Python AI service is excluded from the Vercel frontend bundle via .vercelignore and must be deployed separately for trained-model inference.
 
-- Python inference service syntax check: **PASS** (`python -m py_compile`).
-- TypeScript application structural/type pass with local external-package declaration stubs: **PASS**, after fixing application-level errors.
-- Route scan confirms Patient / PHC / Retina Specialist role portals and protected route groups.
-- Shared persistent workflow: patient booking → PHC appointment → fundus screening → trained-model result → specialist review → final result/referral.
-- New connected data objects: care plan, consultation and follow-up-ready models.
-- Patient webcam path is explicitly separated from retinal inference.
-- Fundus analysis requires retinal image data.
-- Pixel-based fundus quality gate checks sharpness, illumination, contrast and a fundus-like field before inference.
-- The inference backend independently re-checks image gradability/non-fundus input; frontend state cannot bypass the gate.
-- Ungradable image blocks trained-model analysis.
-- Patient report is optional during booking, matching the revised workflow.
-- PHC tele-ophthalmology consultation can be scheduled and is visible to specialist/patient workflows.
-- Specialist care plan supports medicines, diet, routine, monitoring, precautions and goals; these fields are clinician-entered, not AI-generated.
-- No Admin portal was added.
+## Static checks run in the artifact workspace
+- All 20 TypeScript/TSX source files were parsed/transpiled with the TypeScript compiler API: 0 syntax diagnostics.
+- `python3 -m py_compile ai_service/app.py`: passed.
+- Recurring jsPDF `setFont(undefined, ...)` build issue removed from PatientPortal and DoctorPortal.
+- Old generic camera error text removed.
+- Vercel SPA rewrite and `.vercelignore` included.
 
 ## Environment limitation
+The artifact environment cannot currently complete `npm install` from npm registry, so a real dependency-resolved `npm run build` could not be executed here. Run `npm install && npm run build` locally before deployment. The source-level syntax pass above is not a substitute for the final dependency-resolved build.
 
-The workspace could not complete `npm install` because the package registry request timed out, so a real Vite production bundle could not be executed here. The source tree passed a TypeScript structural check using temporary dependency stubs; those stubs are **not included** in the final project.
+## Production AI requirement
+The Vercel frontend deliberately does not invent clinical outputs if `VITE_DR_API_URL` is absent. Configure it to the separately deployed AI backend. Browser-side quality fallback is explicitly labelled as a pre-check and is not presented as the trained CNN.
 
-On a networked development machine run:
-
-```bash
-npm install
-npm run build
-```
-
-Then run the Python service separately as described in README.
-
-## Clinical/model limitation
-
-The wired trained model is a research/triage model trained on APTOS 2019. It is not a certified diagnostic device and is not 100% accurate. Its model card notes unverified performance across different populations/camera types. The application therefore always separates **AI Screening Recommendation** from **Ophthalmologist Final Assessment**.
-
-## Eye camera upgrade verification
-- Backend `/eye-check` now returns eye bounding-box, centering, brightness, sharpness and a single `ready` signal.
-- Frontend requires stable green state before auto-capture.
-- Beep + 3/2/1 sequence implemented with Web Audio.
-- Countdown cancels if readiness is lost.
-- Auto capture uses detected eye crop; manual capture uses central eye-guide crop.
-- Python backend compile check passed after this change.
-- Full TypeScript build could not be executed in this sandbox because npm dependencies are not installed; global `tsc` reports missing React/router packages rather than an application-specific compile result.
-
-## Camera flow revision
-- Removed deployed-camera dependence on localhost `/eye-check` for green readiness.
-- Added browser-side MediaPipe eye/face landmark tracking.
-- First-login quiz completion now redirects directly to the eye-capture route.
-- Auto-capture requires stable green readiness and uses beep + 3-2-1 countdown.
-- Manual capture remains available and saves a central/detected eye crop rather than the whole frame.
-- Dependency installation/build could not be completed in this environment because npm install timed out; run `npm install && npm run build` locally before deployment.
+- Camera capture now creates a persisted Preliminary Screening Report PDF and exposes it immediately after capture and in Patient > Reports.
+- Real fundus model analysis creates a separate AI Retinal Screening Report PDF; external-eye camera captures are never treated as retinal DR diagnoses.

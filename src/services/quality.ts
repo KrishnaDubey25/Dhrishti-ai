@@ -1,11 +1,14 @@
 import type {Quality,UploadRecord} from '../types';
-export type QualityAssessment={quality:Quality;score:number;guidance:string;enhancementRecommended:boolean;fundusLike?:boolean;metrics?:{sharpness:number;brightness:number;contrast:number}};
-const API_URL=(import.meta as any).env?.VITE_DR_API_URL || 'http://localhost:8001';
+export type QualityAssessment={quality:Quality;score:number;guidance:string;enhancementRecommended:boolean;fundusLike?:boolean;metrics?:{sharpness:number;brightness:number;contrast:number};cnn?:{gradable:boolean;confidence:number;threshold:number;architecture:string;training_data:string[];source:string};decisionSource?:string};
+const configured=(import.meta as any).env?.VITE_DR_API_URL as string|undefined;
+const API_URL=configured||((typeof location!=='undefined'&&(location.hostname==='localhost'||location.hostname==='127.0.0.1'))?'http://localhost:8001':'');
+async function browserPrecheck(image:UploadRecord):Promise<QualityAssessment>{
+  if(!image.dataUrl)return {quality:'unusable',score:0,guidance:'No image data was available.',enhancementRecommended:false,decisionSource:'browser-precheck'};
+  const img=new Image();img.src=image.dataUrl;await img.decode();const c=document.createElement('canvas');c.width=256;c.height=256;const x=c.getContext('2d',{willReadFrequently:true})!;x.drawImage(img,0,0,256,256);const d=x.getImageData(0,0,256,256).data;let sum=0,sum2=0,grad=0,n=0,prev=0,red=0,green=0,blue=0;for(let i=0;i<d.length;i+=4){const y=.299*d[i]+.587*d[i+1]+.114*d[i+2];sum+=y;sum2+=y*y;if(n%256!==0)grad+=Math.abs(y-prev);prev=y;red+=d[i];green+=d[i+1];blue+=d[i+2];n++}const brightness=sum/n,contrast=Math.sqrt(Math.max(0,sum2/n-brightness*brightness)),sharpness=grad/Math.max(1,n-1);const redDominant=red/n>green/n*1.04&&red/n>blue/n*1.10;let quality:Quality='enhance';if(brightness<28||brightness>235||contrast<15||sharpness<2)quality='unusable';const score=Math.max(0,Math.min(78,Math.round(35+contrast*.65+sharpness*1.6-Math.abs(brightness-120)*.12+(redDominant?8:0))));return {quality,score,guidance:quality==='unusable'?'Browser pre-check found a severe focus/exposure problem. Recapture before clinical analysis.':'CNN quality service is not connected in this deployment. This is only a browser capture pre-check; connect the trained CNN service before clinical AI analysis.',enhancementRecommended:quality==='enhance',fundusLike:redDominant,metrics:{sharpness,brightness,contrast},decisionSource:'browser-precheck'};
+}
 export async function assessFundusQuality(image:UploadRecord):Promise<QualityAssessment>{
-  if(!image.type.startsWith('image/')||!image.dataUrl)return {quality:'unusable',score:0,guidance:'A readable retinal image is required.',enhancementRecommended:false,fundusLike:false};
-  const blob=await (await fetch(image.dataUrl)).blob();const fd=new FormData();fd.append('image',blob,image.name);
-  const res=await fetch(`${API_URL}/quality-check`,{method:'POST',body:fd});
-  if(!res.ok)throw new Error('Fundus quality service unavailable. Start ai_service before screening.');
-  const q=await res.json();return {quality:q.quality,score:Number(q.score),guidance:String(q.guidance),enhancementRecommended:q.quality==='enhance',fundusLike:Boolean(q.fundus_like),metrics:q.metrics};
+  if(!image.type.startsWith('image/')||!image.dataUrl)return {quality:'unusable',score:0,guidance:'A readable retinal image is required.',enhancementRecommended:false,fundusLike:false,decisionSource:'validation'};
+  if(!API_URL)return browserPrecheck(image);
+  try{const blob=await (await fetch(image.dataUrl)).blob();const fd=new FormData();fd.append('image',blob,image.name);const res=await fetch(`${API_URL}/quality-check`,{method:'POST',body:fd});if(!res.ok)throw new Error('quality service returned an error');const q=await res.json();return {quality:q.quality,score:Number(q.score),guidance:String(q.guidance),enhancementRecommended:q.quality==='enhance',fundusLike:Boolean(q.fundus_like),metrics:q.metrics,cnn:q.cnn,decisionSource:q.decision_source||'trained-cnn'};}catch(e){console.warn('CNN quality service unavailable; using browser pre-check.',e);return browserPrecheck(image)}
 }
 export function enhanceFundus(image:UploadRecord){return {...image,name:`enhanced-${image.name}`};}
