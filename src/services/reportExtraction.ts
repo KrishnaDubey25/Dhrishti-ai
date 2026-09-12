@@ -1,9 +1,8 @@
 import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {createWorker} from 'tesseract.js';
 import type {ClinicalExtractionKey,DiabetesReportAnalysis,ExtractedClinicalField} from '../types';
 
-(pdfjsLib.GlobalWorkerOptions as any).workerSrc=pdfWorker;
+(pdfjsLib.GlobalWorkerOptions as any).workerSrc='/pdfjs/pdf.worker.min.mjs';
 
 const normalize=(s:string)=>s.replace(/\u00a0/g,' ').replace(/[\t ]+/g,' ').replace(/\r/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
 const clamp=(n:number,a=0,b=100)=>Math.max(a,Math.min(b,n));

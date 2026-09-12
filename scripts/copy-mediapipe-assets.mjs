@@ -29,3 +29,16 @@ try {
 } catch (error) {
   console.warn('[DRISHTI] Could not cache face-landmarker model; runtime Google model fallback remains enabled.', error?.message || error);
 }
+
+
+// Cache PDF.js worker locally so Vite/TypeScript does not need ?url imports.
+const pdfWorkerSource = resolve(root, 'node_modules/pdfjs-dist/build/pdf.worker.min.mjs');
+const pdfWorkerTarget = resolve(root, 'public/pdfjs/pdf.worker.min.mjs');
+
+try {
+  await mkdir(dirname(pdfWorkerTarget), { recursive: true });
+  await cp(pdfWorkerSource, pdfWorkerTarget, { force: true });
+  console.log('[DRISHTI] PDF.js worker copied to public/pdfjs/pdf.worker.min.mjs');
+} catch (error) {
+  console.warn('[DRISHTI] Could not copy PDF.js worker.', error?.message || error);
+}
