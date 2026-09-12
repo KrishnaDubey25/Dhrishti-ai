@@ -131,3 +131,11 @@ This build adds a complete patient-side account and screening journey:
 
 ### Authentication note
 This repository still uses browser-local prototype authentication/localStorage. The patient experience and validations are functional for demos/hackathons, but a clinical production deployment must replace the local adapter with a server-side identity provider, secure password hashing, verified email, session management, audit logging, and appropriate healthcare privacy controls.
+
+## PHC Clinical Workflow (September 2026 upgrade)
+
+PHC flow is now: Today's Bookings -> complete patient context -> diabetes report + PHC-verified clinical values -> bilateral fundus images -> CNN gradability gate -> trained 5-class DR model -> detailed contextual PHC report -> ophthalmologist review/referral.
+
+The detailed PHC report includes per-eye model grade/confidence, bilateral image-quality scores, overall referable status, model metadata, retinal summary, verified diabetes/systemic context, coordination priority, follow-up guidance, and a downloadable PDF. The attached diabetes report is retained as source evidence. In this prototype, PHC staff verify/enter structured values from the report; the app does not fabricate OCR results from unreadable documents.
+
+No part of the app claims 100% diagnostic accuracy. Model confidence is displayed separately from accuracy, ungradable retinal images are blocked, and the final clinical assessment belongs to an ophthalmologist/qualified eye-care professional.
