@@ -1,23 +1,26 @@
-# DRISHTI-AI verification notes
+# DRISHTI-AI Verification
 
-## Latest camera / scan behavior
-- Q&A -> continuously tracked eye-only camera -> stable green lock -> loud double buzzer -> 3 / 2 / 1 tones -> shutter effect -> real captured-pixel quality scan -> preliminary urgency result -> report.
-- Auto-capture requires MediaPipe eye landmarks. If landmark tracking is unavailable, the app stays in guided manual-capture mode rather than falsely auto-capturing.
-- Green lock is continuously validated. Meaningful eye-center movement, loss of landmarks, or eye-size change during countdown cancels the countdown and prevents capture.
-- Captured image crop is tightened around one eye.
-- Post-capture processing calculates brightness, contrast, detail/sharpness, glare ratio and dark-pixel ratio from the saved image itself.
-- Low / Moderate / High / Critical remains a non-diagnostic screening-urgency result. Retinal DR severity requires a fundus image.
-- Low urgency does not display an urgent PHC recommendation; instead the UI displays a next self-check interval and routine retinal-screening note.
+## Patient production pass
+- Gmail-only patient registration: implemented at UI and data-service layers.
+- Strong password rules: 10+ chars, uppercase, lowercase, number, special character, confirm password.
+- Required patient identity fields: implemented.
+- Mandatory first-login Q&A: implemented; skip removed.
+- Previous report upload: optional.
+- Left/right eye selection: retained and separately persisted.
+- Camera/upload pixel-quality scan: retained.
+- Poor-quality image retake gate: implemented; preliminary guidance/report is blocked for `Retake recommended` images.
+- Longer post-capture scan pipeline: implemented (~5+ seconds before final result under normal browser timing).
+- Low-risk follow-up interval without urgent PHC recommendation: retained.
+- Patient premium auth/onboarding/profile UI: implemented.
 
-## Static checks performed
-- All `src/**/*.ts` and `src/**/*.tsx` files parsed/transpiled with the installed TypeScript parser: 0 syntax diagnostics.
-- `ai_service/app.py` Python bytecode compilation passed.
-- Full dependency-resolved `npm run build` still needs to be run locally because project npm dependencies are not installed in this execution environment.
+## Static QA performed in this environment
+- TypeScript/TSX syntax/transpile check: 20 files, 0 errors.
+- Python AI service `py_compile`: passed.
+- Old `setFont(undefined, ...)` regression: absent.
+- `Skip for now` onboarding bypass: absent.
 
-## Required local validation
-```bash
-npm install
-npm run build
-```
+## Environment limitation
+A full dependency-resolved `npm run build` could not be completed in the assistant environment because `npm install` timed out while accessing the package registry. Run `npm install && npm run build` on the target machine before deployment.
 
-Then test camera/audio on the deployed HTTPS origin. Browser/system volume must be enabled. Tap **Enable / test sound** once if the browser has not yet unlocked Web Audio.
+## Clinical boundary
+The external-eye camera flow performs capture guidance and real image-quality analysis. It does not detect retinal lesions or claim a diabetic-retinopathy diagnosis. Actual DR grading remains tied to fundus/retinal imaging and clinician review.

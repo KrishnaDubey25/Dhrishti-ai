@@ -110,3 +110,24 @@ The normal phone/laptop camera image cannot visualize the retina and therefore i
 - Uploaded eye photos go through the same brightness / contrast / detail / glare quality scan.
 - Left and right preliminary reports are saved separately and labeled in Reports.
 - External-eye images are used for capture-quality evidence only; retinal DR grading remains restricted to fundus images.
+
+## Patient Production Pass — September 2026
+
+This build adds a complete patient-side account and screening journey:
+
+- Patient registration accepts `@gmail.com` only.
+- Strong password requires 10+ characters, uppercase, lowercase, number, special character, and confirmation.
+- Full patient identity fields are required: name, phone, DOB, gender, address/locality, emergency contact, consent.
+- First-login health questionnaire cannot be skipped.
+- Every screening question is required; the previous-report upload is the only optional final item.
+- HbA1c, systolic BP, cholesterol, and current treatment are required entries. Users may enter `Not known` when appropriate.
+- Left and Right eye acquisition remain separate.
+- Camera/upload image is actually measured for brightness, contrast, detail/sharpness, glare, dark-area ratio, and overall usability.
+- Poor-quality eye images are blocked with a Retake Required result instead of generating screening guidance.
+- Post-capture scan now takes several seconds and visibly processes image quality, health Q&A, next action, and report generation.
+- Low urgency gives a repeat-check interval rather than an urgent PHC recommendation.
+- Moderate/High/Critical can continue to nearby-PHC discovery and booking.
+- External eye photographs are not presented as retinal DR diagnosis. Retinal/fundus images remain required for DR model grading.
+
+### Authentication note
+This repository still uses browser-local prototype authentication/localStorage. The patient experience and validations are functional for demos/hackathons, but a clinical production deployment must replace the local adapter with a server-side identity provider, secure password hashing, verified email, session management, audit logging, and appropriate healthcare privacy controls.
